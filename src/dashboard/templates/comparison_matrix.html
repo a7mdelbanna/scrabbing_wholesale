@@ -69,27 +69,37 @@
     <div id="matrix-pagination" class="flex justify-center gap-2"></div>
 </div>
 
-<!-- Link Modal -->
+<!-- Unit Link Modal -->
 <div id="link-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
-        <div class="p-4 border-b flex justify-between items-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden">
+        <div class="p-4 border-b flex justify-between items-center bg-gray-50">
             <h3 class="text-lg font-semibold" id="modal-title">ربط المنتج</h3>
             <button onclick="closeLinkModal()" class="text-gray-500 hover:text-gray-700">
                 <i class="fas fa-times text-xl"></i>
             </button>
         </div>
-        <div class="p-4 overflow-y-auto max-h-[70vh]">
-            <!-- Source Product Info -->
-            <div class="bg-gray-50 rounded-lg p-3 mb-4">
-                <p class="text-sm text-gray-500">المنتج المصدر:</p>
-                <p class="font-semibold" id="source-product-name"></p>
-                <p class="text-xs text-gray-500" id="source-product-barcode"></p>
+        <div class="p-4 overflow-y-auto max-h-[75vh]">
+            <!-- Source Product Info with Units -->
+            <div class="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-xs text-blue-600 font-medium">المنتج المصدر</p>
+                        <p class="font-semibold text-gray-800" id="source-product-name"></p>
+                        <p class="text-xs text-gray-500" id="source-product-barcode"></p>
+                    </div>
+                    <div class="text-xs text-blue-600" id="source-product-app"></div>
+                </div>
+                <div id="source-units" class="mt-2 space-y-1"></div>
             </div>
 
             <!-- Tabs -->
             <div class="flex border-b mb-4">
-                <button onclick="switchModalTab('smart')" id="modal-tab-smart"
+                <button onclick="switchModalTab('units')" id="modal-tab-units"
                         class="px-4 py-2 border-b-2 border-blue-500 text-blue-600 font-medium">
+                    <i class="fas fa-box"></i> مطابقة الوحدات
+                </button>
+                <button onclick="switchModalTab('smart')" id="modal-tab-smart"
+                        class="px-4 py-2 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
                     <i class="fas fa-magic"></i> اقتراحات ذكية
                 </button>
                 <button onclick="switchModalTab('search')" id="modal-tab-search"
@@ -98,8 +108,18 @@
                 </button>
             </div>
 
+            <!-- Unit Matching Content -->
+            <div id="modal-content-units">
+                <p class="text-sm text-gray-500 mb-3">اختر الوحدات المتطابقة من كل منتج</p>
+                <div id="unit-suggestions" class="space-y-3">
+                    <div class="text-center py-4 text-gray-500">
+                        <i class="fas fa-spinner fa-spin"></i> جاري التحميل...
+                    </div>
+                </div>
+            </div>
+
             <!-- Smart Suggestions -->
-            <div id="modal-content-smart">
+            <div id="modal-content-smart" class="hidden">
                 <div id="smart-suggestions" class="space-y-2">
                     <div class="text-center py-4 text-gray-500">
                         <i class="fas fa-spinner fa-spin"></i> جاري البحث عن اقتراحات...
@@ -128,10 +148,10 @@
 {% block scripts %}
 <script>
     const appColors = {
-        'ben_soliman': { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', name: 'بن سليمان' },
-        'tager_elsaada': { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', name: 'تاجر السعادة' },
-        'el_rabie': { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', name: 'الربيع' },
-        'gomla_shoaib': { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', name: 'جملة شعيب' }
+        'ben_soliman': { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', header: 'bg-blue-500', name: 'بن سليمان' },
+        'tager_elsaada': { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', header: 'bg-green-500', name: 'تاجر السعادة' },
+        'el_rabie': { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', header: 'bg-orange-500', name: 'الربيع' },
+        'gomla_shoaib': { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', header: 'bg-red-500', name: 'جملة شعيب' }
     };
 
     const appKeys = ['ben_soliman', 'tager_elsaada', 'el_rabie', 'gomla_shoaib'];
@@ -141,6 +161,87 @@
     let manualSearchTimeout = null;
     let currentSourceProduct = null;
     let currentTargetApp = null;
+    let currentTargetProduct = null;
+
+    // Render a single unit row
+    function renderUnitRow(unit, isAvailable) {
+        const availIcon = isAvailable ?
+            '<i class="fas fa-check-circle text-green-500" title="متوفر"></i>' :
+            '<i class="fas fa-times-circle text-red-400" title="غير متوفر"></i>';
+        const priceClass = isAvailable ? 'text-green-600' : 'text-gray-400';
+
+        return `
+            <div class="flex items-center justify-between text-xs py-1 px-2 rounded ${isAvailable ? 'bg-white' : 'bg-gray-100'}">
+                <div class="flex items-center gap-1">
+                    ${availIcon}
+                    <span class="text-gray-600">${unit.name}</span>
+                    <span class="text-gray-400">(x${unit.factor})</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="${priceClass} font-medium">${unit.price ? unit.price.toFixed(2) : '-'}</span>
+                    ${unit.price_per_base ? `<span class="text-gray-400 text-[10px]">(${unit.price_per_base}/وحدة)</span>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    // Render product cell with units
+    function renderProductCell(item, app, row) {
+        const colors = appColors[app];
+
+        if (item && item.product_id) {
+            // Product exists - show with units
+            const units = item.units || [];
+            const hasAvailable = item.has_available_units;
+
+            let unitsHtml = '';
+            if (units.length > 0) {
+                unitsHtml = units.slice(0, 3).map(u => renderUnitRow(u, u.is_available)).join('');
+                if (units.length > 3) {
+                    unitsHtml += `<div class="text-xs text-gray-400 text-center">+${units.length - 3} وحدات أخرى</div>`;
+                }
+            } else {
+                // No units, show product-level info
+                const availIcon = hasAvailable ?
+                    '<i class="fas fa-check-circle text-green-500"></i>' :
+                    '<i class="fas fa-times-circle text-red-400"></i>';
+                unitsHtml = `
+                    <div class="flex items-center justify-between text-xs py-1">
+                        ${availIcon}
+                        <span class="${hasAvailable ? 'text-green-600' : 'text-gray-400'} font-medium">
+                            ${item.best_price ? item.best_price.toFixed(2) + ' ج.م' : '-'}
+                        </span>
+                    </div>
+                `;
+            }
+
+            return `
+                <td class="px-2 py-2 ${colors.bg} border-l ${colors.border} align-top">
+                    <div class="text-xs">
+                        <a href="/products/${item.product_id}" class="font-medium hover:underline ${colors.text} block mb-1" title="${item.name}">
+                            ${item.name?.substring(0, 28) || '-'}${item.name?.length > 28 ? '...' : ''}
+                        </a>
+                        <div class="space-y-0.5 border-t border-gray-200 pt-1">
+                            ${unitsHtml}
+                        </div>
+                        ${item.is_linked && item.link_id ? '<div class="text-center mt-1"><span class="text-xs text-blue-500"><i class="fas fa-link"></i> مربوط</span></div>' : ''}
+                    </div>
+                </td>
+            `;
+        } else {
+            // Product doesn't exist - show link button
+            return `
+                <td class="px-2 py-2 bg-gray-50 border-l border-gray-200 text-center align-middle">
+                    <button onclick="openLinkModal(${row.primary_product_id}, '${row.primary_name.replace(/'/g, "\\'")}', '${row.barcode || ''}', '${row.primary_app}', '${app}')"
+                            class="text-xs text-gray-400 hover:text-blue-500 hover:bg-blue-50 px-3 py-2 rounded transition-all"
+                            title="ربط مع ${colors.name}">
+                        <i class="fas fa-plus-circle text-lg"></i>
+                        <div class="mt-1">ربط</div>
+                    </button>
+                </td>
+            `;
+        }
+    }
 
     async function loadMatrix(page = 1) {
         currentPage = page;
@@ -152,7 +253,7 @@
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</td></tr>';
 
         try {
-            let url = `/comparison/matrix?page=${page}&per_page=30`;
+            let url = `/comparison/matrix?page=${page}&per_page=20`;
             if (sourceApp) url += `&source_app=${sourceApp}`;
             if (search) url += `&search=${encodeURIComponent(search)}`;
             if (unlinkedOnly) url += `&show_unlinked_only=true`;
@@ -170,50 +271,26 @@
             }
 
             tbody.innerHTML = data.data.map(row => {
-                const cells = appKeys.map(app => {
-                    const item = row[app];
-                    const colors = appColors[app];
+                const cells = appKeys.map(app => renderProductCell(row[app], app, row)).join('');
 
-                    if (item && item.product_id) {
-                        // Product exists
-                        const priceClass = item.is_available ? 'text-green-600' : 'text-gray-400 line-through';
-                        return `
-                            <td class="px-2 py-2 ${colors.bg} border-l ${colors.border}">
-                                <div class="text-xs">
-                                    <a href="/products/${item.product_id}" class="font-medium hover:underline ${colors.text}" title="${item.name}">
-                                        ${item.name?.substring(0, 25) || '-'}${item.name?.length > 25 ? '...' : ''}
-                                    </a>
-                                    <div class="${priceClass} font-bold mt-1">
-                                        ${item.price ? item.price.toFixed(2) + ' ج.م' : '-'}
-                                    </div>
-                                    ${item.is_linked && item.link_id ? '<span class="text-xs text-blue-500"><i class="fas fa-link"></i></span>' : ''}
-                                </div>
-                            </td>
-                        `;
-                    } else {
-                        // Product doesn't exist - show link button
-                        return `
-                            <td class="px-2 py-2 bg-gray-50 border-l border-gray-200 text-center">
-                                <button onclick="openLinkModal(${row.primary_product_id}, '${row.primary_name.replace(/'/g, "\\'")}', '${row.barcode || ''}', '${app}')"
-                                        class="text-xs text-gray-400 hover:text-blue-500 hover:bg-blue-50 px-2 py-1 rounded transition-all"
-                                        title="ربط مع ${colors.name}">
-                                    <i class="fas fa-plus-circle"></i>
-                                    <span class="hidden sm:inline">ربط</span>
-                                </button>
-                            </td>
+                // Best deal indicator
+                let bestDealHtml = '';
+                if (row.best_deal_app && row.apps_with_product > 1) {
+                    const diff = row.highest_price - row.lowest_price;
+                    if (diff > 0) {
+                        bestDealHtml = `
+                            <div class="mt-1 text-xs">
+                                <span class="text-orange-500">فرق: ${diff.toFixed(0)}</span>
+                            </div>
                         `;
                     }
-                }).join('');
-
-                // Calculate price difference
-                const prices = appKeys.map(app => row[app]?.price).filter(p => p);
-                const priceDiff = prices.length > 1 ? Math.max(...prices) - Math.min(...prices) : null;
+                }
 
                 return `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-2 py-2 text-xs">
-                            <div class="font-mono text-gray-600">${row.barcode || '-'}</div>
-                            ${priceDiff ? `<div class="text-orange-500 text-xs mt-1">فرق: ${priceDiff.toFixed(2)}</div>` : ''}
+                        <td class="px-2 py-2 text-xs align-top">
+                            <div class="font-mono text-gray-600 text-[11px]">${row.barcode || '-'}</div>
+                            ${bestDealHtml}
                         </td>
                         ${cells}
                     </tr>
@@ -255,32 +332,67 @@
         container.innerHTML = html;
     }
 
-    function openLinkModal(productId, productName, barcode, targetApp) {
-        currentSourceProduct = { id: productId, name: productName, barcode: barcode };
+    async function openLinkModal(productId, productName, barcode, sourceApp, targetApp) {
+        currentSourceProduct = { id: productId, name: productName, barcode: barcode, app: sourceApp };
         currentTargetApp = targetApp;
+        currentTargetProduct = null;
 
         document.getElementById('modal-title').textContent = `ربط المنتج مع ${appColors[targetApp].name}`;
         document.getElementById('source-product-name').textContent = productName;
         document.getElementById('source-product-barcode').textContent = barcode ? `باركود: ${barcode}` : 'بدون باركود';
+        document.getElementById('source-product-app').textContent = appColors[sourceApp].name;
 
         // Reset tabs
-        switchModalTab('smart');
+        switchModalTab('units');
 
         // Show modal
         document.getElementById('link-modal').classList.remove('hidden');
 
-        // Load smart suggestions
+        // Load source product units
+        await loadSourceUnits(productId);
+
+        // Load unit suggestions and smart matches
         loadSmartSuggestions(productId, targetApp);
+    }
+
+    async function loadSourceUnits(productId) {
+        const container = document.getElementById('source-units');
+        container.innerHTML = '<div class="text-xs text-gray-500"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        try {
+            const units = await fetchAPI(`/product-links/units/${productId}`);
+            if (units.length === 0) {
+                container.innerHTML = '<div class="text-xs text-gray-500">لا توجد وحدات</div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="grid grid-cols-2 gap-1 mt-1">
+                    ${units.map(u => `
+                        <div class="text-xs bg-white rounded px-2 py-1 flex justify-between items-center">
+                            <span>
+                                ${u.is_available ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-times-circle text-red-400"></i>'}
+                                ${u.name} (x${u.factor})
+                            </span>
+                            <span class="${u.is_available ? 'text-green-600' : 'text-gray-400'}">${u.price ? u.price.toFixed(2) : '-'}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } catch (err) {
+            container.innerHTML = '<div class="text-xs text-red-500">خطأ في التحميل</div>';
+        }
     }
 
     function closeLinkModal() {
         document.getElementById('link-modal').classList.add('hidden');
         currentSourceProduct = null;
         currentTargetApp = null;
+        currentTargetProduct = null;
     }
 
     function switchModalTab(tab) {
-        ['smart', 'search'].forEach(t => {
+        ['units', 'smart', 'search'].forEach(t => {
             document.getElementById(`modal-tab-${t}`).classList.remove('border-blue-500', 'text-blue-600');
             document.getElementById(`modal-tab-${t}`).classList.add('border-transparent', 'text-gray-500');
             document.getElementById(`modal-content-${t}`).classList.add('hidden');
@@ -292,59 +404,163 @@
     }
 
     async function loadSmartSuggestions(productId, targetApp) {
-        const container = document.getElementById('smart-suggestions');
-        container.innerHTML = '<div class="text-center py-4 text-gray-500"><i class="fas fa-spinner fa-spin"></i> جاري البحث عن اقتراحات...</div>';
+        const smartContainer = document.getElementById('smart-suggestions');
+        const unitContainer = document.getElementById('unit-suggestions');
+
+        smartContainer.innerHTML = '<div class="text-center py-4 text-gray-500"><i class="fas fa-spinner fa-spin"></i> جاري البحث...</div>';
+        unitContainer.innerHTML = '<div class="text-center py-4 text-gray-500"><i class="fas fa-spinner fa-spin"></i> جاري البحث...</div>';
 
         try {
-            const data = await fetchAPI(`/product-links/smart-match/${productId}?target_app=${targetApp}&limit=5`);
+            const matches = await fetchAPI(`/product-links/smart-match/${productId}?target_app=${targetApp}&limit=5`);
 
-            if (data.length === 0) {
-                container.innerHTML = '<div class="text-center py-4 text-gray-500"><i class="fas fa-exclamation-circle"></i> لا توجد اقتراحات</div>';
+            if (matches.length === 0) {
+                smartContainer.innerHTML = '<div class="text-center py-4 text-gray-500"><i class="fas fa-exclamation-circle"></i> لا توجد اقتراحات</div>';
+                unitContainer.innerHTML = '<div class="text-center py-4 text-gray-500"><i class="fas fa-exclamation-circle"></i> لا توجد منتجات متطابقة</div>';
                 return;
             }
 
-            container.innerHTML = data.map((match, idx) => {
-                const scorePercent = (match.score * 100).toFixed(0);
-                const scoreColor = match.score > 0.8 ? 'text-green-600' : match.score > 0.6 ? 'text-yellow-600' : 'text-orange-600';
-                const matchTypeIcon = {
-                    'barcode': 'fa-barcode',
-                    'sku': 'fa-tag',
-                    'brand': 'fa-trademark',
-                    'name': 'fa-font',
-                    'similarity': 'fa-equals'
-                }[match.match_type] || 'fa-link';
+            // Smart suggestions
+            smartContainer.innerHTML = matches.map((match, idx) => renderSmartSuggestion(match, idx)).join('');
 
-                return `
-                    <div class="border rounded-lg p-3 hover:bg-gray-50 ${idx === 0 ? 'border-green-300 bg-green-50' : ''}">
-                        <div class="flex justify-between items-start">
-                            <div class="flex-1">
-                                <div class="font-medium text-sm">${match.name}</div>
-                                <div class="text-xs text-gray-500 mt-1">
-                                    ${match.barcode ? `<span class="mr-2"><i class="fas fa-barcode"></i> ${match.barcode}</span>` : ''}
-                                    ${match.price ? `<span class="text-green-600 font-bold">${match.price.toFixed(2)} ج.م</span>` : ''}
-                                </div>
-                                <div class="flex flex-wrap gap-1 mt-2">
-                                    ${match.match_reasons.map(r => `<span class="text-xs bg-gray-200 px-2 py-0.5 rounded">${r}</span>`).join('')}
-                                </div>
-                            </div>
-                            <div class="text-left mr-3">
-                                <div class="flex items-center gap-1 ${scoreColor}">
-                                    <i class="fas ${matchTypeIcon}"></i>
-                                    <span class="font-bold">${scorePercent}%</span>
-                                </div>
-                                <button onclick="createLink(${currentSourceProduct.id}, ${match.product_id})"
-                                        class="mt-2 bg-green-500 text-white px-3 py-1 rounded text-xs hover:bg-green-600">
-                                    <i class="fas fa-link"></i> ربط
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
+            // For unit matching, load unit suggestions for the best match
+            if (matches.length > 0) {
+                await loadUnitSuggestions(productId, matches[0].product_id);
+            }
         } catch (err) {
             console.error('Error loading suggestions:', err);
-            container.innerHTML = '<div class="text-center py-4 text-red-500">حدث خطأ في تحميل الاقتراحات</div>';
+            smartContainer.innerHTML = '<div class="text-center py-4 text-red-500">حدث خطأ</div>';
+            unitContainer.innerHTML = '<div class="text-center py-4 text-red-500">حدث خطأ</div>';
         }
+    }
+
+    function renderSmartSuggestion(match, idx) {
+        const scorePercent = (match.score * 100).toFixed(0);
+        const scoreColor = match.score > 0.8 ? 'text-green-600' : match.score > 0.6 ? 'text-yellow-600' : 'text-orange-600';
+        const matchTypeIcon = {
+            'barcode': 'fa-barcode',
+            'sku': 'fa-tag',
+            'brand': 'fa-trademark',
+            'name': 'fa-font',
+            'similarity': 'fa-equals'
+        }[match.match_type] || 'fa-link';
+
+        return `
+            <div class="border rounded-lg p-3 hover:bg-gray-50 ${idx === 0 ? 'border-green-300 bg-green-50' : ''}">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="font-medium text-sm">${match.name}</div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            ${match.barcode ? `<span class="mr-2"><i class="fas fa-barcode"></i> ${match.barcode}</span>` : ''}
+                            ${match.price ? `<span class="text-green-600 font-bold">${match.price.toFixed(2)} ج.م</span>` : ''}
+                        </div>
+                        <div class="flex flex-wrap gap-1 mt-2">
+                            ${match.match_reasons.map(r => `<span class="text-xs bg-gray-200 px-2 py-0.5 rounded">${r}</span>`).join('')}
+                        </div>
+                    </div>
+                    <div class="text-left mr-3">
+                        <div class="flex items-center gap-1 ${scoreColor}">
+                            <i class="fas ${matchTypeIcon}"></i>
+                            <span class="font-bold">${scorePercent}%</span>
+                        </div>
+                        <div class="flex flex-col gap-1 mt-2">
+                            <button onclick="showUnitLinking(${currentSourceProduct.id}, ${match.product_id}, '${match.name.replace(/'/g, "\\'")}')"
+                                    class="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600">
+                                <i class="fas fa-boxes"></i> ربط بالوحدات
+                            </button>
+                            <button onclick="createLink(${currentSourceProduct.id}, ${match.product_id})"
+                                    class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs hover:bg-gray-300">
+                                <i class="fas fa-link"></i> ربط سريع
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    async function showUnitLinking(sourceProductId, targetProductId, targetName) {
+        currentTargetProduct = { id: targetProductId, name: targetName };
+        switchModalTab('units');
+        await loadUnitSuggestions(sourceProductId, targetProductId);
+    }
+
+    async function loadUnitSuggestions(sourceProductId, targetProductId) {
+        const container = document.getElementById('unit-suggestions');
+        container.innerHTML = '<div class="text-center py-4 text-gray-500"><i class="fas fa-spinner fa-spin"></i> جاري تحميل الوحدات...</div>';
+
+        try {
+            const suggestions = await fetchAPI(`/product-links/unit-suggestions/${sourceProductId}/${targetProductId}`);
+
+            if (suggestions.length === 0) {
+                container.innerHTML = '<div class="text-center py-4 text-gray-500">لا توجد وحدات متطابقة</div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="mb-3 p-2 bg-gray-100 rounded text-sm text-gray-600">
+                    <i class="fas fa-info-circle"></i>
+                    اختر الوحدات المتطابقة للربط بدقة
+                </div>
+                ${suggestions.map(s => renderUnitSuggestion(s, sourceProductId, targetProductId)).join('')}
+            `;
+        } catch (err) {
+            console.error('Error loading unit suggestions:', err);
+            container.innerHTML = '<div class="text-center py-4 text-red-500">حدث خطأ في التحميل</div>';
+        }
+    }
+
+    function renderUnitSuggestion(suggestion, sourceProductId, targetProductId) {
+        const scorePercent = (suggestion.score * 100).toFixed(0);
+        const warningClass = suggestion.factor_warning ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200';
+
+        return `
+            <div class="border rounded-lg p-3 mb-2 ${warningClass}">
+                ${suggestion.factor_warning ? `
+                    <div class="text-xs text-yellow-600 mb-2">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        تحذير: عوامل الوحدات مختلفة
+                    </div>
+                ` : ''}
+                <div class="flex items-center gap-4">
+                    <!-- Source Unit -->
+                    <div class="flex-1 bg-blue-50 rounded p-2">
+                        <div class="text-xs text-blue-600 mb-1">الوحدة المصدر</div>
+                        <div class="font-medium text-sm">${suggestion.unit_a.name}</div>
+                        <div class="text-xs text-gray-500">
+                            عامل: ${suggestion.unit_a.factor} |
+                            ${suggestion.unit_a.price ? suggestion.unit_a.price.toFixed(2) + ' ج.م' : '-'}
+                            ${suggestion.unit_a.price_per_base ? `<span class="text-gray-400">(${suggestion.unit_a.price_per_base}/وحدة)</span>` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Arrow -->
+                    <div class="text-gray-400">
+                        <i class="fas fa-arrows-alt-h text-xl"></i>
+                        <div class="text-xs text-center">${scorePercent}%</div>
+                    </div>
+
+                    <!-- Target Unit -->
+                    <div class="flex-1 bg-green-50 rounded p-2">
+                        <div class="text-xs text-green-600 mb-1">الوحدة الهدف</div>
+                        <div class="font-medium text-sm">${suggestion.unit_b.name}</div>
+                        <div class="text-xs text-gray-500">
+                            عامل: ${suggestion.unit_b.factor} |
+                            ${suggestion.unit_b.price ? suggestion.unit_b.price.toFixed(2) + ' ج.م' : '-'}
+                            ${suggestion.unit_b.price_per_base ? `<span class="text-gray-400">(${suggestion.unit_b.price_per_base}/وحدة)</span>` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Link Button -->
+                    <button onclick="createUnitLink(${sourceProductId}, ${targetProductId}, ${suggestion.unit_a.unit_id}, ${suggestion.unit_b.unit_id})"
+                            class="bg-green-500 text-white px-3 py-2 rounded text-xs hover:bg-green-600 whitespace-nowrap">
+                        <i class="fas fa-link"></i> ربط
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-1 mt-2">
+                    ${suggestion.match_reasons.map(r => `<span class="text-xs bg-gray-200 px-2 py-0.5 rounded">${r}</span>`).join('')}
+                </div>
+            </div>
+        `;
     }
 
     function debounceManualSearch() {
@@ -380,10 +596,16 @@
                             ${product.price ? ` | <span class="text-green-600">${product.price.toFixed(2)} ج.م</span>` : ''}
                         </div>
                     </div>
-                    <button onclick="createLink(${currentSourceProduct.id}, ${product.product_id})"
-                            class="bg-green-500 text-white px-3 py-1 rounded text-xs hover:bg-green-600">
-                        <i class="fas fa-link"></i> ربط
-                    </button>
+                    <div class="flex flex-col gap-1">
+                        <button onclick="showUnitLinking(${currentSourceProduct.id}, ${product.product_id}, '${product.name.replace(/'/g, "\\'")}')"
+                                class="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600">
+                            <i class="fas fa-boxes"></i> ربط بالوحدات
+                        </button>
+                        <button onclick="createLink(${currentSourceProduct.id}, ${product.product_id})"
+                                class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs hover:bg-gray-300">
+                            <i class="fas fa-link"></i> ربط سريع
+                        </button>
+                    </div>
                 </div>
             `).join('');
         } catch (err) {
@@ -408,6 +630,27 @@
         } catch (err) {
             console.error('Error creating link:', err);
             showToast('حدث خطأ في ربط المنتج', 'error');
+        }
+    }
+
+    async function createUnitLink(productAId, productBId, unitAId, unitBId) {
+        try {
+            await fetchAPI('/product-links/unit-link', {
+                method: 'POST',
+                body: JSON.stringify({
+                    product_a_id: productAId,
+                    product_b_id: productBId,
+                    unit_a_id: unitAId,
+                    unit_b_id: unitBId
+                })
+            });
+
+            showToast('تم ربط الوحدات بنجاح', 'success');
+            closeLinkModal();
+            loadMatrix(currentPage);
+        } catch (err) {
+            console.error('Error creating unit link:', err);
+            showToast('حدث خطأ في ربط الوحدات', 'error');
         }
     }
 

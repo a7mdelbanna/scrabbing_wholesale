@@ -288,7 +288,10 @@ class ProductLink(Base):
     id = Column(Integer, primary_key=True)
     product_a_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     product_b_id = Column(Integer, ForeignKey("products.id"), nullable=False)
-    link_type = Column(String(50), default="manual")  # barcode, manual, suggested, verified
+    # Unit-level linking (optional - null means link is at product level)
+    unit_a_id = Column(Integer, ForeignKey("product_units.id"), nullable=True)
+    unit_b_id = Column(Integer, ForeignKey("product_units.id"), nullable=True)
+    link_type = Column(String(50), default="manual")  # barcode, manual, suggested, verified, unit_barcode
     confidence_score = Column(Numeric(5, 4))  # 0.0000 to 1.0000 for suggested links
     match_reason = Column(String(255))  # Description of why products were linked
     verified_by = Column(String(100))  # Who verified the link
@@ -300,12 +303,16 @@ class ProductLink(Base):
     # Relationships
     product_a = relationship("Product", foreign_keys=[product_a_id], backref="links_as_a")
     product_b = relationship("Product", foreign_keys=[product_b_id], backref="links_as_b")
+    unit_a = relationship("ProductUnit", foreign_keys=[unit_a_id], backref="links_as_a")
+    unit_b = relationship("ProductUnit", foreign_keys=[unit_b_id], backref="links_as_b")
 
     __table_args__ = (
-        # Ensure we don't create duplicate links (A-B same as B-A)
-        UniqueConstraint("product_a_id", "product_b_id", name="uq_product_link"),
+        # Ensure we don't create duplicate links (A-B same as B-A, including units)
+        UniqueConstraint("product_a_id", "product_b_id", "unit_a_id", "unit_b_id", name="uq_product_unit_link"),
         Index("idx_product_link_a", "product_a_id"),
         Index("idx_product_link_b", "product_b_id"),
+        Index("idx_product_link_unit_a", "unit_a_id"),
+        Index("idx_product_link_unit_b", "unit_b_id"),
         Index("idx_product_link_type", "link_type"),
         Index("idx_product_link_active", "is_active"),
     )

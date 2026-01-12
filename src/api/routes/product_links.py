@@ -24,6 +24,16 @@ class ProductLinkCreate(BaseModel):
     verified_by: Optional[str] = Field(None, description="Name of person creating the link")
 
 
+class UnitLinkCreate(BaseModel):
+    """Create unit-level product link request."""
+
+    product_a_id: int = Field(..., description="First product ID")
+    product_b_id: int = Field(..., description="Second product ID")
+    unit_a_id: int = Field(..., description="Unit ID from first product")
+    unit_b_id: int = Field(..., description="Unit ID from second product")
+    verified_by: Optional[str] = Field(None, description="Name of person creating the link")
+
+
 class ProductLinkResponse(BaseModel):
     """Product link response."""
 
@@ -34,6 +44,13 @@ class ProductLinkResponse(BaseModel):
     product_b_id: int
     product_b_name: Optional[str] = None
     product_b_app: Optional[str] = None
+    # Unit-level link info
+    unit_a_id: Optional[int] = None
+    unit_a_name: Optional[str] = None
+    unit_a_factor: Optional[int] = None
+    unit_b_id: Optional[int] = None
+    unit_b_name: Optional[str] = None
+    unit_b_factor: Optional[int] = None
     link_type: str
     confidence_score: Optional[float] = None
     match_reason: Optional[str] = None
@@ -44,6 +61,43 @@ class ProductLinkResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class UnitInfo(BaseModel):
+    """Unit information."""
+    unit_id: int
+    name: str
+    name_ar: Optional[str] = None
+    factor: int = 1
+    barcode: Optional[str] = None
+    price: Optional[float] = None
+    price_per_base: Optional[float] = None
+    is_available: bool = True
+
+
+class UnitMatchResult(BaseModel):
+    """Unit match result."""
+    unit_id: int
+    name: str
+    name_ar: Optional[str] = None
+    factor: int = 1
+    barcode: Optional[str] = None
+    price: Optional[float] = None
+    price_per_base: Optional[float] = None
+    is_available: bool = True
+    score: float
+    match_reasons: List[str]
+    match_type: str
+
+
+class UnitLinkSuggestion(BaseModel):
+    """Unit link suggestion."""
+    unit_a: UnitInfo
+    unit_b: UnitInfo
+    score: float
+    match_reasons: List[str]
+    match_type: str
+    factor_warning: bool = False
 
 
 class ProductLinkSuggestion(BaseModel):
@@ -69,9 +123,19 @@ class AutoLinkResponse(BaseModel):
 
 
 def build_link_response(link: ProductLink, db: Session) -> ProductLinkResponse:
-    """Build link response with product details."""
+    """Build link response with product and unit details."""
+    from src.models.database import ProductUnit
+
     product_a = db.query(Product).filter(Product.id == link.product_a_id).first()
     product_b = db.query(Product).filter(Product.id == link.product_b_id).first()
+
+    # Get unit info if unit-level link
+    unit_a = None
+    unit_b = None
+    if link.unit_a_id:
+        unit_a = db.query(ProductUnit).filter(ProductUnit.id == link.unit_a_id).first()
+    if link.unit_b_id:
+        unit_b = db.query(ProductUnit).filter(ProductUnit.id == link.unit_b_id).first()
 
     return ProductLinkResponse(
         id=link.id,
@@ -81,6 +145,12 @@ def build_link_response(link: ProductLink, db: Session) -> ProductLinkResponse:
         product_b_id=link.product_b_id,
         product_b_name=product_b.name if product_b else None,
         product_b_app=product_b.source_app if product_b else None,
+        unit_a_id=link.unit_a_id,
+        unit_a_name=unit_a.name if unit_a else None,
+        unit_a_factor=unit_a.factor if unit_a else None,
+        unit_b_id=link.unit_b_id,
+        unit_b_name=unit_b.name if unit_b else None,
+        unit_b_factor=unit_b.factor if unit_b else None,
         link_type=link.link_type,
         confidence_score=float(link.confidence_score) if link.confidence_score else None,
         match_reason=link.match_reason,
@@ -346,3 +416,111 @@ async def get_product_link(
         raise NotFoundError("ProductLink", link_id)
 
     return build_link_response(link, db)
+
+
+# ============= Unit-Level Linking Endpoints =============
+
+@router.get("/units/{product_id}")
+async def get_product_units(
+    product_id: int,
+    db: Session = Depends(get_db),
+) -> List[UnitInfo]:
+    """
+    Get all units for a product with their prices.
+
+    Returns units ordered by factor (smallest first).
+    """
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise NotFoundError("Product", product_id)
+
+    service = LinkingService(db)
+    units = service.get_product_units(product_id)
+
+    return [UnitInfo(**u) for u in units]
+
+
+@router.get("/unit-matches/{source_unit_id}/{target_product_id}")
+async def get_unit_matches(
+    source_unit_id: int,
+    target_product_id: int,
+    db: Session = Depends(get_db),
+) -> List[UnitMatchResult]:
+    """
+    Find matching units in target product for a source unit.
+
+    Uses multiple matching strategies:
+    - Unit barcode match
+    - Factor match
+    - Unit name similarity
+    - Normalized price similarity
+
+    Returns list of matching units with scores.
+    """
+    service = LinkingService(db)
+    matches = service.find_unit_matches(source_unit_id, target_product_id)
+
+    return [UnitMatchResult(**m) for m in matches]
+
+
+@router.get("/unit-suggestions/{product_a_id}/{product_b_id}")
+async def get_unit_link_suggestions(
+    product_a_id: int,
+    product_b_id: int,
+    db: Session = Depends(get_db),
+) -> List[UnitLinkSuggestion]:
+    """
+    Get suggested unit-to-unit links between two products.
+
+    Returns pairs of units that should be linked, sorted by confidence score.
+    Includes warnings for factor mismatches.
+    """
+    # Validate products exist
+    product_a = db.query(Product).filter(Product.id == product_a_id).first()
+    product_b = db.query(Product).filter(Product.id == product_b_id).first()
+
+    if not product_a:
+        raise NotFoundError("Product", product_a_id)
+    if not product_b:
+        raise NotFoundError("Product", product_b_id)
+
+    if product_a.source_app == product_b.source_app:
+        raise ValidationError("Cannot get suggestions for products from the same app")
+
+    service = LinkingService(db)
+    suggestions = service.get_unit_link_suggestions(product_a_id, product_b_id)
+
+    return [UnitLinkSuggestion(
+        unit_a=UnitInfo(**s["unit_a"]),
+        unit_b=UnitInfo(**s["unit_b"]),
+        score=s["score"],
+        match_reasons=s["match_reasons"],
+        match_type=s["match_type"],
+        factor_warning=s["factor_warning"],
+    ) for s in suggestions]
+
+
+@router.post("/unit-link", response_model=ProductLinkResponse)
+async def create_unit_link(
+    link_data: UnitLinkCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    Create a unit-level link between two products.
+
+    Links specific units from two products, enabling accurate price comparison.
+    Validates that units belong to the specified products and have compatible factors.
+    """
+    service = LinkingService(db)
+
+    try:
+        link = service.create_unit_link(
+            product_a_id=link_data.product_a_id,
+            product_b_id=link_data.product_b_id,
+            unit_a_id=link_data.unit_a_id,
+            unit_b_id=link_data.unit_b_id,
+            verified_by=link_data.verified_by,
+        )
+        return build_link_response(link, db)
+    except ValueError as e:
+        raise ValidationError(str(e))
