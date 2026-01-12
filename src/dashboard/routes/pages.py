@@ -77,7 +77,7 @@ async def home(request: Request):
 async def products_page(
     request: Request,
     source: Optional[str] = Query(None, description="Filter by source app"),
-    category_id: Optional[int] = Query(None, description="Filter by category"),
+    category_id: Optional[str] = Query(None, description="Filter by category"),
     available_only: bool = Query(False, description="Show only available products"),
     search: Optional[str] = Query(None, description="Search in product name"),
     page: int = Query(1, ge=1, description="Page number"),
@@ -86,15 +86,23 @@ async def products_page(
     """Products listing page with filters."""
     templates = request.app.state.templates
 
+    # Convert category_id to int if provided and not empty
+    category_id_int = None
+    if category_id and category_id.strip():
+        try:
+            category_id_int = int(category_id)
+        except ValueError:
+            pass
+
     async with get_async_session() as session:
         # Build query
         query = select(Product).where(Product.is_active == True)
 
-        if source:
+        if source and source.strip():
             query = query.where(Product.source_app == source)
 
-        if category_id:
-            query = query.where(Product.category_id == category_id)
+        if category_id_int:
+            query = query.where(Product.category_id == category_id_int)
 
         if search:
             query = query.where(Product.name.ilike(f"%{search}%"))
@@ -142,8 +150,8 @@ async def products_page(
             "page": page,
             "per_page": per_page,
             "total_pages": total_pages,
-            "source": source,
-            "category_id": category_id,
+            "source": source or "",
+            "category_id": category_id_int,
             "available_only": available_only,
             "search": search or "",
             "source_apps": [

@@ -123,7 +123,7 @@
 {% if total_pages > 1 %}
 <div class="flex justify-center items-center gap-2 mt-8">
     {% if page > 1 %}
-    <a href="?page={{ page - 1 }}&source={{ source or '' }}&category_id={{ category_id or '' }}&search={{ search }}"
+    <a href="?page={{ page - 1 }}{% if source %}&source={{ source }}{% endif %}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
        class="px-4 py-2 bg-white rounded-md shadow hover:bg-gray-50 transition">
         السابق
     </a>
@@ -134,7 +134,7 @@
     </span>
 
     {% if page < total_pages %}
-    <a href="?page={{ page + 1 }}&source={{ source or '' }}&category_id={{ category_id or '' }}&search={{ search }}"
+    <a href="?page={{ page + 1 }}{% if source %}&source={{ source }}{% endif %}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
        class="px-4 py-2 bg-white rounded-md shadow hover:bg-gray-50 transition">
         التالي
     </a>
