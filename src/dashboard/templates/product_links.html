@@ -1,0 +1,454 @@
+{% extends "base.html" %}
+
+{% block title %}ربط المنتجات{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">
+            <i class="fas fa-link text-blue-500"></i>
+            ربط المنتجات
+        </h1>
+        <div class="flex gap-2">
+            <button onclick="autoLink()" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+                <i class="fas fa-magic"></i> ربط تلقائي
+            </button>
+            <button onclick="loadAllData()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                <i class="fas fa-sync-alt"></i> تحديث
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="link-stats">
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-blue-600" id="stat-total">-</div>
+            <div class="text-sm text-gray-500">إجمالي الروابط</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-green-600" id="stat-barcode">-</div>
+            <div class="text-sm text-gray-500">روابط بالباركود</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-purple-600" id="stat-manual">-</div>
+            <div class="text-sm text-gray-500">روابط يدوية</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center">
+            <div class="text-3xl font-bold text-orange-600" id="stat-verified">-</div>
+            <div class="text-sm text-gray-500">روابط مؤكدة</div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="border-b">
+            <nav class="flex -mb-px">
+                <button onclick="switchTab('links')" id="tab-links"
+                        class="px-6 py-3 border-b-2 border-blue-500 text-blue-600 font-medium">
+                    <i class="fas fa-link"></i> الروابط
+                </button>
+                <button onclick="switchTab('suggestions')" id="tab-suggestions"
+                        class="px-6 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+                    <i class="fas fa-lightbulb"></i> اقتراحات
+                </button>
+                <button onclick="switchTab('manual')" id="tab-manual"
+                        class="px-6 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+                    <i class="fas fa-plus"></i> ربط يدوي
+                </button>
+            </nav>
+        </div>
+
+        <!-- Links Tab -->
+        <div id="content-links" class="p-4">
+            <div class="flex gap-4 mb-4">
+                <select id="filter-link-type" class="border rounded-lg px-3 py-2" onchange="loadLinks()">
+                    <option value="">جميع الأنواع</option>
+                    <option value="barcode">باركود</option>
+                    <option value="manual">يدوي</option>
+                    <option value="verified">مؤكد</option>
+                </select>
+                <input type="text" id="filter-search" class="border rounded-lg px-3 py-2 flex-1"
+                       placeholder="بحث بالاسم أو الباركود..." onkeyup="debounceSearch()">
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المنتج الأول</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المنتج الثاني</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">نوع الربط</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الثقة</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="links-body" class="divide-y divide-gray-200">
+                        <tr><td colspan="5" class="text-center py-8 text-gray-500">جاري التحميل...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="links-pagination" class="mt-4 flex justify-center gap-2"></div>
+        </div>
+
+        <!-- Suggestions Tab -->
+        <div id="content-suggestions" class="p-4 hidden">
+            <div class="mb-4">
+                <button onclick="loadSuggestions()" class="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600">
+                    <i class="fas fa-search"></i> البحث عن اقتراحات
+                </button>
+                <span class="text-sm text-gray-500 mr-2">(يبحث عن منتجات متشابهة الاسم)</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المنتج الأول</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المنتج المقترح</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">نسبة التشابه</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="suggestions-body" class="divide-y divide-gray-200">
+                        <tr><td colspan="4" class="text-center py-8 text-gray-500">اضغط على "البحث عن اقتراحات" للبدء</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Manual Link Tab -->
+        <div id="content-manual" class="p-4 hidden">
+            <div class="max-w-2xl mx-auto space-y-6">
+                <div class="bg-blue-50 rounded-lg p-4 text-sm text-blue-700">
+                    <i class="fas fa-info-circle"></i>
+                    أدخل معرف المنتجين لربطهم يدوياً
+                </div>
+
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">المنتج الأول</label>
+                        <input type="number" id="manual-product-a" class="w-full border rounded-lg px-3 py-2"
+                               placeholder="معرف المنتج" oninput="previewProduct('a')">
+                        <div id="preview-a" class="mt-2 p-3 bg-gray-50 rounded-lg min-h-[100px]">
+                            <span class="text-gray-400 text-sm">أدخل معرف المنتج</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">المنتج الثاني</label>
+                        <input type="number" id="manual-product-b" class="w-full border rounded-lg px-3 py-2"
+                               placeholder="معرف المنتج" oninput="previewProduct('b')">
+                        <div id="preview-b" class="mt-2 p-3 bg-gray-50 rounded-lg min-h-[100px]">
+                            <span class="text-gray-400 text-sm">أدخل معرف المنتج</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="createManualLink()" class="w-full bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 font-medium">
+                    <i class="fas fa-link"></i> إنشاء الرابط
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const appColors = {
+        'ben_soliman': { bg: 'bg-blue-100', text: 'text-blue-600', name: 'بن سليمان' },
+        'tager_elsaada': { bg: 'bg-green-100', text: 'text-green-600', name: 'تاجر السعادة' },
+        'el_rabie': { bg: 'bg-orange-100', text: 'text-orange-600', name: 'الربيع' },
+        'gomla_shoaib': { bg: 'bg-red-100', text: 'text-red-600', name: 'جملة شعيب' }
+    };
+
+    let currentPage = 1;
+    let searchTimeout = null;
+
+    async function loadAllData() {
+        await Promise.all([
+            loadStats(),
+            loadLinks()
+        ]);
+    }
+
+    async function loadStats() {
+        try {
+            const data = await fetchAPI('/product-links/stats');
+            document.getElementById('stat-total').textContent = data.total_links;
+            document.getElementById('stat-barcode').textContent = data.by_type?.barcode || 0;
+            document.getElementById('stat-manual').textContent = data.by_type?.manual || 0;
+            document.getElementById('stat-verified').textContent = data.by_type?.verified || 0;
+        } catch (err) {
+            console.error('Error loading stats:', err);
+        }
+    }
+
+    async function loadLinks(page = 1) {
+        currentPage = page;
+        const linkType = document.getElementById('filter-link-type').value;
+        const search = document.getElementById('filter-search').value;
+
+        try {
+            let url = `/product-links?page=${page}&per_page=20`;
+            if (linkType) url += `&link_type=${linkType}`;
+
+            const data = await fetchAPI(url);
+            const tbody = document.getElementById('links-body');
+
+            if (data.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500">لا توجد روابط</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.data.map(link => {
+                const colorsA = appColors[link.product_a?.source_app] || {};
+                const colorsB = appColors[link.product_b?.source_app] || {};
+
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-1 text-xs rounded ${colorsA.bg || 'bg-gray-100'} ${colorsA.text || ''}">${colorsA.name || link.product_a?.source_app}</span>
+                                <a href="/products/${link.product_a?.id}" class="text-blue-600 hover:underline">
+                                    ${link.product_a?.name?.substring(0, 30) || 'غير متوفر'}...
+                                </a>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-1 text-xs rounded ${colorsB.bg || 'bg-gray-100'} ${colorsB.text || ''}">${colorsB.name || link.product_b?.source_app}</span>
+                                <a href="/products/${link.product_b?.id}" class="text-blue-600 hover:underline">
+                                    ${link.product_b?.name?.substring(0, 30) || 'غير متوفر'}...
+                                </a>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs rounded-full ${
+                                link.link_type === 'barcode' ? 'bg-green-100 text-green-800' :
+                                link.link_type === 'verified' ? 'bg-blue-100 text-blue-800' :
+                                'bg-gray-100 text-gray-800'
+                            }">
+                                ${link.link_type === 'barcode' ? 'باركود' : link.link_type === 'verified' ? 'مؤكد' : 'يدوي'}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            ${link.confidence_score ? `${(link.confidence_score * 100).toFixed(0)}%` : '-'}
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex gap-2">
+                                ${link.link_type !== 'verified' ? `
+                                    <button onclick="verifyLink(${link.id})" class="text-green-500 hover:text-green-700" title="تأكيد">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                ` : ''}
+                                <button onclick="deleteLink(${link.id})" class="text-red-500 hover:text-red-700" title="حذف">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Pagination
+            renderPagination(data.meta, 'links-pagination', 'loadLinks');
+        } catch (err) {
+            console.error('Error loading links:', err);
+        }
+    }
+
+    async function loadSuggestions() {
+        const tbody = document.getElementById('suggestions-body');
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500"><i class="fas fa-spinner fa-spin"></i> جاري البحث...</td></tr>';
+
+        try {
+            const data = await fetchAPI('/product-links/suggestions?limit=50');
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">لا توجد اقتراحات جديدة</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(suggestion => {
+                const colorsA = appColors[suggestion.product_a?.source_app] || {};
+                const colorsB = appColors[suggestion.product_b?.source_app] || {};
+
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-1 text-xs rounded ${colorsA.bg || 'bg-gray-100'}">${colorsA.name || suggestion.product_a?.source_app}</span>
+                                <span class="text-sm">${suggestion.product_a?.name?.substring(0, 40)}...</span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-1 text-xs rounded ${colorsB.bg || 'bg-gray-100'}">${colorsB.name || suggestion.product_b?.source_app}</span>
+                                <span class="text-sm">${suggestion.product_b?.name?.substring(0, 40)}...</span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-20 bg-gray-200 rounded-full h-2">
+                                    <div class="h-2 rounded-full bg-green-500" style="width: ${suggestion.similarity * 100}%"></div>
+                                </div>
+                                <span class="text-sm font-medium">${(suggestion.similarity * 100).toFixed(0)}%</span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <button onclick="acceptSuggestion(${suggestion.product_a?.id}, ${suggestion.product_b?.id})"
+                                    class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
+                                <i class="fas fa-check"></i> قبول
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (err) {
+            console.error('Error loading suggestions:', err);
+        }
+    }
+
+    async function autoLink() {
+        if (!confirm('سيتم ربط المنتجات تلقائياً بناءً على الباركود. متابعة؟')) return;
+
+        showToast('جاري الربط التلقائي...', 'info');
+
+        try {
+            const data = await fetchAPI('/product-links/auto-link', { method: 'POST' });
+            showToast(`تم ربط ${data.links_created} منتج`, 'success');
+            loadAllData();
+        } catch (err) {
+            console.error('Error auto-linking:', err);
+        }
+    }
+
+    async function verifyLink(linkId) {
+        try {
+            await fetchAPI(`/product-links/${linkId}/verify`, { method: 'POST' });
+            showToast('تم تأكيد الرابط', 'success');
+            loadLinks(currentPage);
+            loadStats();
+        } catch (err) {
+            console.error('Error verifying link:', err);
+        }
+    }
+
+    async function deleteLink(linkId) {
+        if (!confirm('هل تريد حذف هذا الرابط؟')) return;
+
+        try {
+            await fetchAPI(`/product-links/${linkId}`, { method: 'DELETE' });
+            showToast('تم حذف الرابط', 'success');
+            loadLinks(currentPage);
+            loadStats();
+        } catch (err) {
+            console.error('Error deleting link:', err);
+        }
+    }
+
+    async function acceptSuggestion(productAId, productBId) {
+        try {
+            await fetchAPI('/product-links', {
+                method: 'POST',
+                body: JSON.stringify({
+                    product_a_id: productAId,
+                    product_b_id: productBId
+                })
+            });
+            showToast('تم إنشاء الرابط', 'success');
+            loadSuggestions();
+            loadStats();
+        } catch (err) {
+            console.error('Error accepting suggestion:', err);
+        }
+    }
+
+    async function previewProduct(which) {
+        const input = document.getElementById(`manual-product-${which}`);
+        const preview = document.getElementById(`preview-${which}`);
+        const productId = input.value;
+
+        if (!productId) {
+            preview.innerHTML = '<span class="text-gray-400 text-sm">أدخل معرف المنتج</span>';
+            return;
+        }
+
+        try {
+            const data = await fetchAPI(`/products/${productId}`);
+            const colors = appColors[data.source_app] || {};
+
+            preview.innerHTML = `
+                <div class="space-y-1">
+                    <span class="px-2 py-1 text-xs rounded ${colors.bg || 'bg-gray-100'}">${colors.name || data.source_app}</span>
+                    <div class="font-medium text-sm">${data.name}</div>
+                    <div class="text-xs text-gray-500">باركود: ${data.barcode || '-'}</div>
+                </div>
+            `;
+        } catch (err) {
+            preview.innerHTML = '<span class="text-red-500 text-sm">منتج غير موجود</span>';
+        }
+    }
+
+    async function createManualLink() {
+        const productAId = document.getElementById('manual-product-a').value;
+        const productBId = document.getElementById('manual-product-b').value;
+
+        if (!productAId || !productBId) {
+            showToast('أدخل معرف المنتجين', 'warning');
+            return;
+        }
+
+        try {
+            await fetchAPI('/product-links', {
+                method: 'POST',
+                body: JSON.stringify({
+                    product_a_id: parseInt(productAId),
+                    product_b_id: parseInt(productBId)
+                })
+            });
+            showToast('تم إنشاء الرابط بنجاح', 'success');
+            document.getElementById('manual-product-a').value = '';
+            document.getElementById('manual-product-b').value = '';
+            document.getElementById('preview-a').innerHTML = '<span class="text-gray-400 text-sm">أدخل معرف المنتج</span>';
+            document.getElementById('preview-b').innerHTML = '<span class="text-gray-400 text-sm">أدخل معرف المنتج</span>';
+            loadStats();
+        } catch (err) {
+            console.error('Error creating link:', err);
+        }
+    }
+
+    function switchTab(tab) {
+        ['links', 'suggestions', 'manual'].forEach(t => {
+            document.getElementById(`tab-${t}`).classList.remove('border-blue-500', 'text-blue-600');
+            document.getElementById(`tab-${t}`).classList.add('border-transparent', 'text-gray-500');
+            document.getElementById(`content-${t}`).classList.add('hidden');
+        });
+
+        document.getElementById(`tab-${tab}`).classList.remove('border-transparent', 'text-gray-500');
+        document.getElementById(`tab-${tab}`).classList.add('border-blue-500', 'text-blue-600');
+        document.getElementById(`content-${tab}`).classList.remove('hidden');
+    }
+
+    function renderPagination(meta, containerId, callback) {
+        const container = document.getElementById(containerId);
+        if (meta.total_pages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        for (let i = 1; i <= meta.total_pages; i++) {
+            html += `<button onclick="${callback}(${i})" class="px-3 py-1 rounded ${i === meta.page ? 'bg-blue-500 text-white' : 'bg-gray-200 hover:bg-gray-300'}">${i}</button>`;
+        }
+        container.innerHTML = html;
+    }
+
+    function debounceSearch() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => loadLinks(), 300);
+    }
+
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', loadAllData);
+</script>
+{% endblock %}

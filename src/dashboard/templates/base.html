@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         /* Arabic font support */
         body {
@@ -16,47 +17,186 @@
         .ltr {
             direction: ltr;
         }
+        /* Dropdown menu */
+        .dropdown:hover .dropdown-menu {
+            display: block;
+        }
+        .dropdown-menu {
+            display: none;
+        }
+        /* Toast notifications */
+        .toast {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-100 min-h-screen flex flex-col">
     <!-- Navigation -->
-    <nav class="bg-white shadow-lg">
+    <nav class="bg-white shadow-lg sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
-                    <a href="/" class="text-xl font-bold text-blue-600">
+                    <a href="/" class="text-xl font-bold text-blue-600 flex items-center gap-2">
+                        <i class="fas fa-chart-line"></i>
                         Competitor Dashboard
                     </a>
                 </div>
-                <div class="flex items-center space-x-4 space-x-reverse">
-                    <a href="/" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 {% if request.url.path == '/' %}bg-gray-100{% endif %}">
+                <div class="flex items-center space-x-1 space-x-reverse">
+                    <!-- Home -->
+                    <a href="/" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 flex items-center gap-1 {% if request.url.path == '/' %}bg-blue-50 text-blue-600{% endif %}">
+                        <i class="fas fa-home"></i>
                         الرئيسية
                     </a>
-                    <a href="/products" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 {% if '/products' in request.url.path and '/products/' not in request.url.path %}bg-gray-100{% endif %}">
+
+                    <!-- Products -->
+                    <a href="/products" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 flex items-center gap-1 {% if '/products' in request.url.path %}bg-blue-50 text-blue-600{% endif %}">
+                        <i class="fas fa-box"></i>
                         المنتجات
                     </a>
-                    <a href="/comparison" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 {% if request.url.path == '/comparison' %}bg-gray-100{% endif %}">
-                        مقارنة الاسعار
+
+                    <!-- Comparison -->
+                    <a href="/comparison" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 flex items-center gap-1 {% if request.url.path == '/comparison' %}bg-blue-50 text-blue-600{% endif %}">
+                        <i class="fas fa-balance-scale"></i>
+                        المقارنة
                     </a>
-                    <a href="/jobs" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 {% if request.url.path == '/jobs' %}bg-gray-100{% endif %}">
-                        المهام
+
+                    <!-- Product Links -->
+                    <a href="/product-links" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 flex items-center gap-1 {% if request.url.path == '/product-links' %}bg-blue-50 text-blue-600{% endif %}">
+                        <i class="fas fa-link"></i>
+                        الربط
                     </a>
+
+                    <!-- Analytics -->
+                    <a href="/analytics" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 flex items-center gap-1 {% if request.url.path == '/analytics' %}bg-blue-50 text-blue-600{% endif %}">
+                        <i class="fas fa-chart-bar"></i>
+                        التحليلات
+                    </a>
+
+                    <!-- Scraper Dropdown -->
+                    <div class="dropdown relative">
+                        <button class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 flex items-center gap-1 {% if '/scraper' in request.url.path or '/jobs' in request.url.path %}bg-blue-50 text-blue-600{% endif %}">
+                            <i class="fas fa-spider"></i>
+                            السكرابر
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </button>
+                        <div class="dropdown-menu absolute left-0 mt-1 w-48 bg-white rounded-md shadow-lg border z-50">
+                            <a href="/scraper" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-cog ml-2"></i>الادارة
+                            </a>
+                            <a href="/jobs" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-tasks ml-2"></i>المهام
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Export -->
+                    <a href="/export" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 flex items-center gap-1 {% if request.url.path == '/export' %}bg-blue-50 text-blue-600{% endif %}">
+                        <i class="fas fa-download"></i>
+                        تصدير
+                    </a>
+
+                    <!-- More Dropdown -->
+                    <div class="dropdown relative">
+                        <button class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 flex items-center gap-1 {% if '/offers' in request.url.path or '/banners' in request.url.path %}bg-blue-50 text-blue-600{% endif %}">
+                            <i class="fas fa-ellipsis-h"></i>
+                            المزيد
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </button>
+                        <div class="dropdown-menu absolute left-0 mt-1 w-48 bg-white rounded-md shadow-lg border z-50">
+                            <a href="/offers" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-tags ml-2"></i>العروض
+                            </a>
+                            <a href="/banners" class="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-image ml-2"></i>البانرات
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </nav>
 
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-20 left-4 z-50 space-y-2"></div>
+
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto py-6 px-4">
+    <main class="max-w-7xl mx-auto py-6 px-4 flex-grow w-full">
         {% block content %}{% endblock %}
     </main>
 
     <!-- Footer -->
     <footer class="bg-white border-t mt-auto">
         <div class="max-w-7xl mx-auto py-4 px-4 text-center text-gray-500 text-sm">
-            Competitor Price Scraper Dashboard
+            <div class="flex justify-center items-center gap-4">
+                <span>Competitor Price Scraper Dashboard</span>
+                <span class="text-gray-300">|</span>
+                <a href="/api/v1/system/health" target="_blank" class="text-blue-500 hover:underline">
+                    <i class="fas fa-heartbeat"></i> API Status
+                </a>
+                <span class="text-gray-300">|</span>
+                <a href="http://127.0.0.1:8000/docs" target="_blank" class="text-blue-500 hover:underline">
+                    <i class="fas fa-book"></i> API Docs
+                </a>
+            </div>
         </div>
     </footer>
+
+    <!-- Toast Function -->
+    <script>
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const colors = {
+                'success': 'bg-green-500',
+                'error': 'bg-red-500',
+                'warning': 'bg-yellow-500',
+                'info': 'bg-blue-500'
+            };
+            const icons = {
+                'success': 'fa-check-circle',
+                'error': 'fa-times-circle',
+                'warning': 'fa-exclamation-triangle',
+                'info': 'fa-info-circle'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2`;
+            toast.innerHTML = `<i class="fas ${icons[type]}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // API base URL
+        const API_BASE = 'http://127.0.0.1:8000/api/v1';
+
+        // Generic API fetch function
+        async function fetchAPI(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'API Error');
+                }
+                return await response.json();
+            } catch (err) {
+                showToast(err.message, 'error');
+                throw err;
+            }
+        }
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>

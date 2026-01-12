@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة السكرابر{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">
+            <i class="fas fa-spider text-blue-500"></i>
+            إدارة السكرابر
+        </h1>
+        <button onclick="loadAllData()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+            <i class="fas fa-sync-alt"></i> تحديث
+        </button>
+    </div>
+
+    <!-- Running Jobs Alert -->
+    <div id="running-jobs-alert" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-spinner fa-spin text-yellow-600"></i>
+            <span class="font-medium text-yellow-800">مهام قيد التنفيذ:</span>
+            <span id="running-jobs-list" class="text-yellow-700"></span>
+        </div>
+    </div>
+
+    <!-- Scraper Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="scraper-cards">
+        <!-- Will be populated by JS -->
+    </div>
+
+    <!-- Schedules Section -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <h3 class="text-lg font-semibold mb-4">
+            <i class="fas fa-clock text-purple-500"></i>
+            جداول التشغيل
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">التطبيق</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الحالة</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الجدول (Cron)</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">نوع المهمة</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">آخر تشغيل</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المنتجات</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="schedules-body" class="divide-y divide-gray-200">
+                    <tr><td colspan="7" class="text-center py-8 text-gray-500">جاري التحميل...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recent Jobs Section -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">
+                <i class="fas fa-history text-gray-500"></i>
+                آخر المهام
+            </h3>
+            <a href="/jobs" class="text-blue-500 hover:underline text-sm">
+                عرض الكل <i class="fas fa-arrow-left"></i>
+            </a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">#</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">التطبيق</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">النوع</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الحالة</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المنتجات</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">أخطاء</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">التاريخ</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="recent-jobs-body" class="divide-y divide-gray-200">
+                    <tr><td colspan="8" class="text-center py-8 text-gray-500">جاري التحميل...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Scraper Stats -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <h3 class="text-lg font-semibold mb-4">
+            <i class="fas fa-chart-pie text-green-500"></i>
+            إحصائيات السكرابر
+        </h3>
+        <div id="scraper-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <!-- Will be populated by JS -->
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Edit Modal -->
+<div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="p-4 border-b flex justify-between items-center">
+            <h3 class="text-lg font-semibold">تعديل الجدول</h3>
+            <button onclick="closeScheduleModal()" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 space-y-4">
+            <input type="hidden" id="edit-app">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">الحالة</label>
+                <select id="edit-enabled" class="w-full border rounded-lg px-3 py-2">
+                    <option value="true">مفعل</option>
+                    <option value="false">معطل</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">جدول Cron</label>
+                <input type="text" id="edit-cron" class="w-full border rounded-lg px-3 py-2 ltr" placeholder="0 * * * *">
+                <p class="text-xs text-gray-500 mt-1">مثال: 0 * * * * = كل ساعة</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">نوع المهمة</label>
+                <select id="edit-job-type" class="w-full border rounded-lg px-3 py-2">
+                    <option value="full">كامل</option>
+                    <option value="incremental">تحديث</option>
+                    <option value="categories">فئات فقط</option>
+                </select>
+            </div>
+        </div>
+        <div class="p-4 border-t flex justify-end gap-2">
+            <button onclick="saveSchedule()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                <i class="fas fa-save"></i> حفظ
+            </button>
+            <button onclick="closeScheduleModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">
+                إلغاء
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const appColors = {
+        'ben_soliman': { bg: 'bg-blue-500', light: 'bg-blue-100', text: 'text-blue-600', name: 'بن سليمان' },
+        'tager_elsaada': { bg: 'bg-green-500', light: 'bg-green-100', text: 'text-green-600', name: 'تاجر السعادة' },
+        'el_rabie': { bg: 'bg-orange-500', light: 'bg-orange-100', text: 'text-orange-600', name: 'الربيع' },
+        'gomla_shoaib': { bg: 'bg-red-500', light: 'bg-red-100', text: 'text-red-600', name: 'جملة شعيب' }
+    };
+
+    async function loadAllData() {
+        await Promise.all([
+            loadScraperStatus(),
+            loadSchedules(),
+            loadRecentJobs(),
+            loadScraperStats()
+        ]);
+    }
+
+    async function loadScraperStatus() {
+        try {
+            const data = await fetchAPI('/scraper/status');
+            const container = document.getElementById('scraper-cards');
+
+            // Show running jobs alert
+            const alert = document.getElementById('running-jobs-alert');
+            const runningList = document.getElementById('running-jobs-list');
+            if (data.running_jobs.length > 0) {
+                alert.classList.remove('hidden');
+                runningList.textContent = data.running_jobs.map(j => appColors[j.source_app]?.name || j.source_app).join('، ');
+            } else {
+                alert.classList.add('hidden');
+            }
+
+            // Build cards
+            container.innerHTML = data.apps.map(app => {
+                const colors = appColors[app] || { bg: 'bg-gray-500', light: 'bg-gray-100', text: 'text-gray-600', name: app };
+                const lastCompleted = data.last_completed[app];
+                const isRunning = data.running_jobs.some(j => j.source_app === app);
+
+                return `
+                    <div class="bg-white rounded-lg shadow p-4 border-t-4 ${colors.bg.replace('bg-', 'border-')}">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 class="font-semibold ${colors.text}">${colors.name}</h4>
+                                <p class="text-xs text-gray-500">
+                                    ${isRunning ? '<span class="text-yellow-600"><i class="fas fa-spinner fa-spin"></i> قيد التشغيل</span>' :
+                                      lastCompleted ? `آخر تشغيل: ${new Date(lastCompleted.completed_at).toLocaleDateString('ar-EG')}` : 'لم يتم التشغيل بعد'}
+                                </p>
+                            </div>
+                            ${isRunning ? '' : `
+                                <button onclick="triggerScrape('${app}')" class="px-3 py-1 ${colors.bg} text-white text-sm rounded hover:opacity-80">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                            `}
+                        </div>
+                        <div class="text-2xl font-bold text-gray-800">
+                            ${lastCompleted ? lastCompleted.products_scraped.toLocaleString() : '0'}
+                        </div>
+                        <div class="text-xs text-gray-500">منتج</div>
+                    </div>
+                `;
+            }).join('');
+        } catch (err) {
+            console.error('Error loading scraper status:', err);
+        }
+    }
+
+    async function loadSchedules() {
+        try {
+            const data = await fetchAPI('/scraper/schedules');
+            const tbody = document.getElementById('schedules-body');
+
+            tbody.innerHTML = data.map(schedule => {
+                const colors = appColors[schedule.source_app] || {};
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium ${colors.text || ''}">${colors.name || schedule.source_app}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs rounded-full ${schedule.is_enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                                ${schedule.is_enabled ? 'مفعل' : 'معطل'}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 font-mono text-sm ltr">${schedule.cron_expression}</td>
+                        <td class="px-4 py-3 text-sm">${schedule.job_type}</td>
+                        <td class="px-4 py-3 text-sm">${schedule.last_run_at ? new Date(schedule.last_run_at).toLocaleString('ar-EG') : '-'}</td>
+                        <td class="px-4 py-3 text-sm">${schedule.last_run_products || 0}</td>
+                        <td class="px-4 py-3">
+                            <button onclick="editSchedule('${schedule.source_app}', ${schedule.is_enabled}, '${schedule.cron_expression}', '${schedule.job_type}')"
+                                    class="text-blue-500 hover:text-blue-700">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (err) {
+            console.error('Error loading schedules:', err);
+        }
+    }
+
+    async function loadRecentJobs() {
+        try {
+            const data = await fetchAPI('/scraper/jobs?per_page=5');
+            const tbody = document.getElementById('recent-jobs-body');
+
+            if (data.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-500">لا توجد مهام</td></tr>';
+                return;
+            }
+
+            const statusColors = {
+                'completed': 'bg-green-100 text-green-800',
+                'running': 'bg-yellow-100 text-yellow-800',
+                'pending': 'bg-gray-100 text-gray-800',
+                'failed': 'bg-red-100 text-red-800',
+                'cancelled': 'bg-gray-100 text-gray-800'
+            };
+
+            const statusLabels = {
+                'completed': 'مكتمل',
+                'running': 'قيد التشغيل',
+                'pending': 'قيد الانتظار',
+                'failed': 'فشل',
+                'cancelled': 'ملغي'
+            };
+
+            tbody.innerHTML = data.data.map(job => {
+                const colors = appColors[job.source_app] || {};
+                const canCancel = ['pending', 'running'].includes(job.status);
+
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm">${job.id}</td>
+                        <td class="px-4 py-3 font-medium ${colors.text || ''}">${colors.name || job.source_app}</td>
+                        <td class="px-4 py-3 text-sm">${job.job_type}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs rounded-full ${statusColors[job.status] || 'bg-gray-100'}">
+                                ${statusLabels[job.status] || job.status}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm">${job.products_scraped}</td>
+                        <td class="px-4 py-3 text-sm ${job.errors_count > 0 ? 'text-red-600' : ''}">${job.errors_count}</td>
+                        <td class="px-4 py-3 text-sm">${new Date(job.created_at).toLocaleString('ar-EG')}</td>
+                        <td class="px-4 py-3">
+                            ${canCancel ? `
+                                <button onclick="cancelJob(${job.id})" class="text-red-500 hover:text-red-700" title="إلغاء">
+                                    <i class="fas fa-stop"></i>
+                                </button>
+                            ` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (err) {
+            console.error('Error loading recent jobs:', err);
+        }
+    }
+
+    async function loadScraperStats() {
+        try {
+            const data = await fetchAPI('/scraper/stats');
+            const container = document.getElementById('scraper-stats');
+
+            container.innerHTML = `
+                <div class="bg-blue-50 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-blue-600">${data.total_jobs}</div>
+                    <div class="text-sm text-gray-600">إجمالي المهام</div>
+                </div>
+                <div class="bg-green-50 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-green-600">${data.by_status?.completed || 0}</div>
+                    <div class="text-sm text-gray-600">مهام ناجحة</div>
+                </div>
+                <div class="bg-yellow-50 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-yellow-600">${data.jobs_last_24h}</div>
+                    <div class="text-sm text-gray-600">آخر 24 ساعة</div>
+                </div>
+                <div class="bg-purple-50 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-purple-600">${data.total_products_scraped?.toLocaleString() || 0}</div>
+                    <div class="text-sm text-gray-600">إجمالي المنتجات</div>
+                </div>
+            `;
+        } catch (err) {
+            console.error('Error loading scraper stats:', err);
+        }
+    }
+
+    async function triggerScrape(app) {
+        if (!confirm(`هل تريد تشغيل السكرابر لـ ${appColors[app]?.name || app}؟`)) return;
+
+        try {
+            const data = await fetchAPI('/scraper/trigger', {
+                method: 'POST',
+                body: JSON.stringify({
+                    source_app: app,
+                    job_type: 'full'
+                })
+            });
+
+            showToast(`تم بدء المهمة #${data.id}`, 'success');
+            loadAllData();
+        } catch (err) {
+            console.error('Error triggering scrape:', err);
+        }
+    }
+
+    async function cancelJob(jobId) {
+        if (!confirm('هل تريد إلغاء هذه المهمة؟')) return;
+
+        try {
+            await fetchAPI(`/scraper/jobs/${jobId}/cancel`, { method: 'POST' });
+            showToast('تم إلغاء المهمة', 'success');
+            loadAllData();
+        } catch (err) {
+            console.error('Error cancelling job:', err);
+        }
+    }
+
+    function editSchedule(app, enabled, cron, jobType) {
+        document.getElementById('edit-app').value = app;
+        document.getElementById('edit-enabled').value = enabled.toString();
+        document.getElementById('edit-cron').value = cron;
+        document.getElementById('edit-job-type').value = jobType;
+        document.getElementById('schedule-modal').classList.remove('hidden');
+    }
+
+    function closeScheduleModal() {
+        document.getElementById('schedule-modal').classList.add('hidden');
+    }
+
+    async function saveSchedule() {
+        const app = document.getElementById('edit-app').value;
+        const enabled = document.getElementById('edit-enabled').value === 'true';
+        const cron = document.getElementById('edit-cron').value;
+        const jobType = document.getElementById('edit-job-type').value;
+
+        try {
+            await fetchAPI(`/scraper/schedules/${app}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    is_enabled: enabled,
+                    cron_expression: cron,
+                    job_type: jobType
+                })
+            });
+
+            showToast('تم حفظ الإعدادات', 'success');
+            closeScheduleModal();
+            loadSchedules();
+        } catch (err) {
+            console.error('Error saving schedule:', err);
+        }
+    }
+
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', loadAllData);
+
+    // Auto-refresh every 30 seconds
+    setInterval(loadAllData, 30000);
+</script>
+{% endblock %}

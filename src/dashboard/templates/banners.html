@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}البانرات{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">
+            <i class="fas fa-image text-blue-500"></i>
+            البانرات والسلايدر
+        </h1>
+        <button onclick="loadBanners()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+            <i class="fas fa-sync-alt"></i> تحديث
+        </button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="banner-stats">
+        <div class="bg-white rounded-lg shadow p-4 text-center animate-pulse">
+            <div class="h-8 bg-gray-200 rounded w-1/2 mx-auto mb-2"></div>
+            <div class="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center animate-pulse">
+            <div class="h-8 bg-gray-200 rounded w-1/2 mx-auto mb-2"></div>
+            <div class="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center animate-pulse">
+            <div class="h-8 bg-gray-200 rounded w-1/2 mx-auto mb-2"></div>
+            <div class="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 text-center animate-pulse">
+            <div class="h-8 bg-gray-200 rounded w-1/2 mx-auto mb-2"></div>
+            <div class="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex flex-wrap gap-4">
+            <select id="filter-app" class="border rounded-lg px-3 py-2" onchange="loadBanners()">
+                <option value="">جميع التطبيقات</option>
+                <option value="ben_soliman">بن سليمان</option>
+                <option value="tager_elsaada">تاجر السعادة</option>
+                <option value="el_rabie">الربيع</option>
+                <option value="gomla_shoaib">جملة شعيب</option>
+            </select>
+            <select id="filter-active" class="border rounded-lg px-3 py-2" onchange="loadBanners()">
+                <option value="true">نشط</option>
+                <option value="false">غير نشط</option>
+                <option value="">الكل</option>
+            </select>
+            <select id="filter-type" class="border rounded-lg px-3 py-2" onchange="loadBanners()">
+                <option value="">جميع الأنواع</option>
+                <option value="product">منتج</option>
+                <option value="category">فئة</option>
+                <option value="offer">عرض</option>
+                <option value="external">خارجي</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Banners Grid -->
+    <div id="banners-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Will be populated by JS -->
+        <div class="text-center py-8 col-span-full text-gray-500">جاري التحميل...</div>
+    </div>
+
+    <!-- Pagination -->
+    <div id="banners-pagination" class="flex justify-center gap-2"></div>
+</div>
+
+<!-- Banner Preview Modal -->
+<div id="banner-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden z-50 flex items-center justify-center">
+    <div class="max-w-4xl w-full mx-4">
+        <div class="relative">
+            <button onclick="closeBannerModal()" class="absolute top-2 left-2 text-white bg-black bg-opacity-50 rounded-full w-8 h-8 flex items-center justify-center hover:bg-opacity-75">
+                <i class="fas fa-times"></i>
+            </button>
+            <img id="modal-banner-image" src="" class="w-full rounded-lg shadow-xl" alt="Banner">
+        </div>
+        <div id="modal-banner-info" class="bg-white rounded-lg p-4 mt-4"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const appColors = {
+        'ben_soliman': { bg: 'bg-blue-500', light: 'bg-blue-100', text: 'text-blue-600', name: 'بن سليمان' },
+        'tager_elsaada': { bg: 'bg-green-500', light: 'bg-green-100', text: 'text-green-600', name: 'تاجر السعادة' },
+        'el_rabie': { bg: 'bg-orange-500', light: 'bg-orange-100', text: 'text-orange-600', name: 'الربيع' },
+        'gomla_shoaib': { bg: 'bg-red-500', light: 'bg-red-100', text: 'text-red-600', name: 'جملة شعيب' }
+    };
+
+    const linkTypes = {
+        'product': { icon: 'fa-box', label: 'منتج' },
+        'category': { icon: 'fa-folder', label: 'فئة' },
+        'offer': { icon: 'fa-tags', label: 'عرض' },
+        'external': { icon: 'fa-external-link-alt', label: 'خارجي' }
+    };
+
+    let currentPage = 1;
+
+    async function loadAllData() {
+        await Promise.all([
+            loadStats(),
+            loadBanners()
+        ]);
+    }
+
+    async function loadStats() {
+        try {
+            const data = await fetchAPI('/banners/stats');
+            const container = document.getElementById('banner-stats');
+
+            const appCount = Object.keys(data.by_app || {}).length;
+            const typeCount = Object.keys(data.by_link_type || {}).length;
+
+            container.innerHTML = `
+                <div class="bg-white rounded-lg shadow p-4 text-center border-t-4 border-blue-500">
+                    <div class="text-3xl font-bold text-blue-600">${data.total_banners}</div>
+                    <div class="text-sm text-gray-500">إجمالي البانرات</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center border-t-4 border-green-500">
+                    <div class="text-3xl font-bold text-green-600">${data.active_banners}</div>
+                    <div class="text-sm text-gray-500">نشط</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center border-t-4 border-purple-500">
+                    <div class="text-3xl font-bold text-purple-600">${appCount}</div>
+                    <div class="text-sm text-gray-500">تطبيقات</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center border-t-4 border-orange-500">
+                    <div class="text-3xl font-bold text-orange-600">${typeCount}</div>
+                    <div class="text-sm text-gray-500">أنواع الروابط</div>
+                </div>
+            `;
+        } catch (err) {
+            console.error('Error loading stats:', err);
+        }
+    }
+
+    async function loadBanners(page = 1) {
+        currentPage = page;
+        const app = document.getElementById('filter-app').value;
+        const active = document.getElementById('filter-active').value;
+        const type = document.getElementById('filter-type').value;
+
+        try {
+            let url = `/banners?page=${page}&per_page=12`;
+            if (app) url += `&source_app=${app}`;
+            if (active !== '') url += `&is_active=${active}`;
+            if (type) url += `&link_type=${type}`;
+
+            const data = await fetchAPI(url);
+            const grid = document.getElementById('banners-grid');
+
+            if (data.data.length === 0) {
+                grid.innerHTML = '<div class="text-center py-8 col-span-full text-gray-500">لا توجد بانرات</div>';
+                document.getElementById('banners-pagination').innerHTML = '';
+                return;
+            }
+
+            grid.innerHTML = data.data.map(banner => {
+                const colors = appColors[banner.source_app] || {};
+                const linkType = linkTypes[banner.link_type] || { icon: 'fa-link', label: banner.link_type || 'غير محدد' };
+                const isExpired = banner.end_date && new Date(banner.end_date) < new Date();
+
+                return `
+                    <div class="bg-white rounded-lg shadow overflow-hidden ${isExpired ? 'opacity-60' : ''}">
+                        <div class="relative cursor-pointer" onclick="showBannerModal('${banner.image_url}', '${banner.title || ''}', '${colors.name || banner.source_app}')">
+                            <img src="${banner.image_url}" alt="${banner.title || 'Banner'}" class="w-full h-40 object-cover"
+                                 onerror="this.src='/static/no-image.png'; this.classList.add('opacity-50')">
+                            <div class="absolute top-2 right-2 ${colors.bg || 'bg-gray-500'} text-white px-2 py-1 rounded text-xs">
+                                ${colors.name || banner.source_app}
+                            </div>
+                            ${!banner.is_active ? `
+                                <div class="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs">
+                                    غير نشط
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="p-3">
+                            <h3 class="font-medium text-gray-800 text-sm truncate">${banner.title || banner.title_ar || 'بدون عنوان'}</h3>
+                            <div class="flex justify-between items-center mt-2 text-xs text-gray-500">
+                                <span class="flex items-center gap-1">
+                                    <i class="fas ${linkType.icon}"></i>
+                                    ${linkType.label}
+                                </span>
+                                <span>الترتيب: ${banner.position}</span>
+                            </div>
+                            ${banner.link_url ? `
+                                <a href="${banner.link_url}" target="_blank" class="block mt-2 text-blue-600 hover:underline text-xs truncate ltr">
+                                    <i class="fas fa-external-link-alt"></i> ${banner.link_url.substring(0, 40)}...
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Pagination
+            const pagination = document.getElementById('banners-pagination');
+            if (data.meta.total_pages > 1) {
+                let html = '';
+                for (let i = 1; i <= Math.min(data.meta.total_pages, 10); i++) {
+                    html += `<button onclick="loadBanners(${i})" class="px-3 py-1 rounded ${i === data.meta.page ? 'bg-blue-500 text-white' : 'bg-gray-200 hover:bg-gray-300'}">${i}</button>`;
+                }
+                pagination.innerHTML = html;
+            } else {
+                pagination.innerHTML = '';
+            }
+        } catch (err) {
+            console.error('Error loading banners:', err);
+        }
+    }
+
+    function showBannerModal(imageUrl, title, appName) {
+        document.getElementById('modal-banner-image').src = imageUrl;
+        document.getElementById('modal-banner-info').innerHTML = `
+            <h3 class="font-semibold text-lg">${title || 'بدون عنوان'}</h3>
+            <p class="text-sm text-gray-500">${appName}</p>
+        `;
+        document.getElementById('banner-modal').classList.remove('hidden');
+    }
+
+    function closeBannerModal() {
+        document.getElementById('banner-modal').classList.add('hidden');
+    }
+
+    // Close modal on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeBannerModal();
+    });
+
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', loadAllData);
+</script>
+{% endblock %}

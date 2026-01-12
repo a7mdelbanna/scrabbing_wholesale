@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}التحليلات{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">
+            <i class="fas fa-chart-bar text-blue-500"></i>
+            التحليلات والاحصائيات
+        </h1>
+        <div class="flex gap-2">
+            <select id="periodSelect" class="border rounded-lg px-3 py-2" onchange="loadAllData()">
+                <option value="7d">آخر 7 أيام</option>
+                <option value="30d" selected>آخر 30 يوم</option>
+                <option value="90d">آخر 90 يوم</option>
+            </select>
+            <button onclick="loadAllData()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                <i class="fas fa-sync-alt"></i> تحديث
+            </button>
+        </div>
+    </div>
+
+    <!-- Availability Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="availability-cards">
+        <!-- Will be populated by JS -->
+        <div class="bg-white rounded-lg shadow p-4 animate-pulse">
+            <div class="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+            <div class="h-8 bg-gray-200 rounded w-3/4"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 animate-pulse">
+            <div class="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+            <div class="h-8 bg-gray-200 rounded w-3/4"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 animate-pulse">
+            <div class="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+            <div class="h-8 bg-gray-200 rounded w-3/4"></div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 animate-pulse">
+            <div class="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+            <div class="h-8 bg-gray-200 rounded w-3/4"></div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Price Trends Chart -->
+        <div class="bg-white rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold mb-4">
+                <i class="fas fa-chart-line text-green-500"></i>
+                اتجاهات الأسعار
+            </h3>
+            <div class="h-64">
+                <canvas id="priceTrendsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Scraper Performance Chart -->
+        <div class="bg-white rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold mb-4">
+                <i class="fas fa-tachometer-alt text-purple-500"></i>
+                أداء السكرابر
+            </h3>
+            <div class="h-64">
+                <canvas id="scraperPerformanceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Stats -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <h3 class="text-lg font-semibold mb-4">
+            <i class="fas fa-layer-group text-orange-500"></i>
+            احصائيات الفئات
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full" id="category-stats-table">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الفئة</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">التطبيق</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">عدد المنتجات</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">متوسط السعر</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">أقل سعر</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">أعلى سعر</th>
+                    </tr>
+                </thead>
+                <tbody id="category-stats-body" class="divide-y divide-gray-200">
+                    <tr><td colspan="6" class="text-center py-8 text-gray-500">جاري التحميل...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recent Price Changes -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">
+                <i class="fas fa-exchange-alt text-red-500"></i>
+                تغييرات الأسعار الأخيرة
+            </h3>
+            <select id="priceChangeHours" class="border rounded px-2 py-1 text-sm" onchange="loadPriceChanges()">
+                <option value="24">آخر 24 ساعة</option>
+                <option value="48">آخر 48 ساعة</option>
+                <option value="72">آخر 72 ساعة</option>
+            </select>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">المنتج</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">التطبيق</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">السعر القديم</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">السعر الجديد</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">التغيير</th>
+                    </tr>
+                </thead>
+                <tbody id="price-changes-body" class="divide-y divide-gray-200">
+                    <tr><td colspan="5" class="text-center py-8 text-gray-500">جاري التحميل...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const appColors = {
+        'ben_soliman': { bg: 'rgba(59, 130, 246, 0.5)', border: 'rgb(59, 130, 246)', name: 'بن سليمان' },
+        'tager_elsaada': { bg: 'rgba(34, 197, 94, 0.5)', border: 'rgb(34, 197, 94)', name: 'تاجر السعادة' },
+        'el_rabie': { bg: 'rgba(249, 115, 22, 0.5)', border: 'rgb(249, 115, 22)', name: 'الربيع' },
+        'gomla_shoaib': { bg: 'rgba(239, 68, 68, 0.5)', border: 'rgb(239, 68, 68)', name: 'جملة شعيب' }
+    };
+
+    let priceTrendsChart = null;
+    let scraperPerformanceChart = null;
+
+    async function loadAllData() {
+        await Promise.all([
+            loadAvailability(),
+            loadPriceTrends(),
+            loadScraperPerformance(),
+            loadCategoryStats(),
+            loadPriceChanges()
+        ]);
+    }
+
+    async function loadAvailability() {
+        try {
+            const data = await fetchAPI('/analytics/availability');
+            const container = document.getElementById('availability-cards');
+
+            container.innerHTML = data.map(app => `
+                <div class="bg-white rounded-lg shadow p-4 border-r-4" style="border-color: ${appColors[app.source_app]?.border || '#gray'}">
+                    <div class="text-sm text-gray-500">${appColors[app.source_app]?.name || app.source_app}</div>
+                    <div class="text-2xl font-bold text-gray-800">${app.availability_percentage}%</div>
+                    <div class="text-xs text-gray-400">
+                        ${app.available_products} متاح من ${app.total_products}
+                    </div>
+                    <div class="mt-2 bg-gray-200 rounded-full h-2">
+                        <div class="h-2 rounded-full" style="width: ${app.availability_percentage}%; background-color: ${appColors[app.source_app]?.border || '#gray'}"></div>
+                    </div>
+                </div>
+            `).join('');
+        } catch (err) {
+            console.error('Error loading availability:', err);
+        }
+    }
+
+    async function loadPriceTrends() {
+        try {
+            const period = document.getElementById('periodSelect').value;
+            const data = await fetchAPI(`/analytics/price-trends?period=${period}`);
+
+            const ctx = document.getElementById('priceTrendsChart').getContext('2d');
+
+            if (priceTrendsChart) priceTrendsChart.destroy();
+
+            priceTrendsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.data.map(d => new Date(d.date).toLocaleDateString('ar-EG')),
+                    datasets: [{
+                        label: 'متوسط السعر',
+                        data: data.data.map(d => d.avg_price.toFixed(2)),
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }, {
+                        label: 'أقل سعر',
+                        data: data.data.map(d => d.min_price.toFixed(2)),
+                        borderColor: 'rgb(34, 197, 94)',
+                        backgroundColor: 'transparent',
+                        borderDash: [5, 5]
+                    }, {
+                        label: 'أعلى سعر',
+                        data: data.data.map(d => d.max_price.toFixed(2)),
+                        borderColor: 'rgb(239, 68, 68)',
+                        backgroundColor: 'transparent',
+                        borderDash: [5, 5]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+        } catch (err) {
+            console.error('Error loading price trends:', err);
+        }
+    }
+
+    async function loadScraperPerformance() {
+        try {
+            const data = await fetchAPI('/analytics/scraper-performance');
+
+            const ctx = document.getElementById('scraperPerformanceChart').getContext('2d');
+
+            if (scraperPerformanceChart) scraperPerformanceChart.destroy();
+
+            scraperPerformanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => appColors[d.source_app]?.name || d.source_app),
+                    datasets: [{
+                        label: 'مهام ناجحة',
+                        data: data.map(d => d.successful_jobs),
+                        backgroundColor: 'rgba(34, 197, 94, 0.7)'
+                    }, {
+                        label: 'مهام فاشلة',
+                        data: data.map(d => d.failed_jobs),
+                        backgroundColor: 'rgba(239, 68, 68, 0.7)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true }
+                    }
+                }
+            });
+        } catch (err) {
+            console.error('Error loading scraper performance:', err);
+        }
+    }
+
+    async function loadCategoryStats() {
+        try {
+            const data = await fetchAPI('/analytics/category-stats');
+            const tbody = document.getElementById('category-stats-body');
+
+            // Sort by products count and take top 20
+            const sorted = data.sort((a, b) => b.products_count - a.products_count).slice(0, 20);
+
+            tbody.innerHTML = sorted.map(cat => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">${cat.category_name}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs rounded-full" style="background-color: ${appColors[cat.source_app]?.bg || '#eee'}">
+                            ${appColors[cat.source_app]?.name || cat.source_app}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">${cat.products_count}</td>
+                    <td class="px-4 py-3">${cat.avg_price ? cat.avg_price.toFixed(2) + ' ج.م' : '-'}</td>
+                    <td class="px-4 py-3 text-green-600">${cat.min_price ? cat.min_price.toFixed(2) + ' ج.م' : '-'}</td>
+                    <td class="px-4 py-3 text-red-600">${cat.max_price ? cat.max_price.toFixed(2) + ' ج.م' : '-'}</td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            console.error('Error loading category stats:', err);
+        }
+    }
+
+    async function loadPriceChanges() {
+        try {
+            const hours = document.getElementById('priceChangeHours').value;
+            const data = await fetchAPI(`/analytics/price-changes?hours=${hours}&per_page=20&min_change_percent=5`);
+            const tbody = document.getElementById('price-changes-body');
+
+            if (data.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500">لا توجد تغييرات في الأسعار</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.data.map(change => {
+                const isIncrease = change.change_amount > 0;
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3">
+                            <a href="/products/${change.product_id}" class="text-blue-600 hover:underline">
+                                ${change.product_name.substring(0, 40)}${change.product_name.length > 40 ? '...' : ''}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs rounded-full" style="background-color: ${appColors[change.source_app]?.bg || '#eee'}">
+                                ${appColors[change.source_app]?.name || change.source_app}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">${change.old_price.toFixed(2)} ج.م</td>
+                        <td class="px-4 py-3 font-medium">${change.new_price.toFixed(2)} ج.م</td>
+                        <td class="px-4 py-3 ${isIncrease ? 'text-red-600' : 'text-green-600'}">
+                            <i class="fas fa-arrow-${isIncrease ? 'up' : 'down'}"></i>
+                            ${Math.abs(change.change_percentage).toFixed(1)}%
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (err) {
+            console.error('Error loading price changes:', err);
+        }
+    }
+
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', loadAllData);
+</script>
+{% endblock %}

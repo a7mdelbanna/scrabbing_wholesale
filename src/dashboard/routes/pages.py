@@ -415,3 +415,45 @@ async def jobs_page(
             "total_pages": total_pages,
         },
     )
+
+
+@router.get("/analytics", response_class=HTMLResponse)
+async def analytics_page(request: Request):
+    """Analytics page with charts and statistics."""
+    templates = request.app.state.templates
+    return templates.TemplateResponse("analytics.html", {"request": request})
+
+
+@router.get("/export", response_class=HTMLResponse)
+async def export_page(request: Request):
+    """Export page for downloading data as CSV."""
+    templates = request.app.state.templates
+    return templates.TemplateResponse("export.html", {"request": request})
+
+
+@router.get("/scraper", response_class=HTMLResponse)
+async def scraper_page(request: Request):
+    """Scraper management page."""
+    templates = request.app.state.templates
+    return templates.TemplateResponse("scraper.html", {"request": request})
+
+
+@router.get("/product-links", response_class=HTMLResponse)
+async def product_links_page(request: Request):
+    """Product linking page."""
+    templates = request.app.state.templates
+    return templates.TemplateResponse("product_links.html", {"request": request})
+
+
+@router.get("/offers", response_class=HTMLResponse)
+async def offers_page(request: Request):
+    """Offers and promotions page."""
+    templates = request.app.state.templates
+    return templates.TemplateResponse("offers.html", {"request": request})
+
+
+@router.get("/banners", response_class=HTMLResponse)
+async def banners_page(request: Request):
+    """Banners and sliders page."""
+    templates = request.app.state.templates
+    return templates.TemplateResponse("banners.html", {"request": request})

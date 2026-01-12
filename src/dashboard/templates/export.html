@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+
+{% block title %}تصدير البيانات{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">
+            <i class="fas fa-download text-blue-500"></i>
+            تصدير البيانات
+        </h1>
+    </div>
+
+    <!-- Export Options Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Products Export -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-box text-blue-500 text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-lg">تصدير المنتجات</h3>
+                    <p class="text-sm text-gray-500">CSV مع جميع بيانات المنتجات</p>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <select id="products-app" class="w-full border rounded-lg px-3 py-2">
+                    <option value="">جميع التطبيقات</option>
+                    <option value="ben_soliman">بن سليمان</option>
+                    <option value="tager_elsaada">تاجر السعادة</option>
+                    <option value="el_rabie">الربيع</option>
+                    <option value="gomla_shoaib">جملة شعيب</option>
+                </select>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" id="products-prices" checked class="rounded">
+                    <span class="text-sm">تضمين الأسعار</span>
+                </label>
+                <button onclick="exportProducts()" class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2">
+                    <i class="fas fa-file-csv"></i>
+                    تصدير المنتجات
+                </button>
+                <button onclick="quickExportProducts()" class="w-full bg-blue-100 text-blue-700 py-2 rounded-lg hover:bg-blue-200 flex items-center justify-center gap-2 text-sm">
+                    <i class="fas fa-bolt"></i>
+                    تحميل سريع
+                </button>
+            </div>
+        </div>
+
+        <!-- Prices Export -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-tags text-green-500 text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-lg">تصدير الأسعار</h3>
+                    <p class="text-sm text-gray-500">سجل الأسعار التاريخي</p>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <select id="prices-app" class="w-full border rounded-lg px-3 py-2">
+                    <option value="">جميع التطبيقات</option>
+                    <option value="ben_soliman">بن سليمان</option>
+                    <option value="tager_elsaada">تاجر السعادة</option>
+                    <option value="el_rabie">الربيع</option>
+                    <option value="gomla_shoaib">جملة شعيب</option>
+                </select>
+                <input type="date" id="prices-start" class="w-full border rounded-lg px-3 py-2" placeholder="من تاريخ">
+                <input type="date" id="prices-end" class="w-full border rounded-lg px-3 py-2" placeholder="إلى تاريخ">
+                <button onclick="exportPrices()" class="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 flex items-center justify-center gap-2">
+                    <i class="fas fa-file-csv"></i>
+                    تصدير الأسعار
+                </button>
+            </div>
+        </div>
+
+        <!-- Comparison Export -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-balance-scale text-purple-500 text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-lg">تصدير المقارنة</h3>
+                    <p class="text-sm text-gray-500">مقارنة الأسعار بين التطبيقات</p>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" id="compare-ben" checked class="rounded"> بن سليمان
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" id="compare-tager" checked class="rounded"> تاجر السعادة
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" id="compare-rabie" checked class="rounded"> الربيع
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" id="compare-shoaib" checked class="rounded"> جملة شعيب
+                </label>
+                <button onclick="exportComparison()" class="w-full bg-purple-500 text-white py-2 rounded-lg hover:bg-purple-600 flex items-center justify-center gap-2">
+                    <i class="fas fa-file-csv"></i>
+                    تصدير المقارنة
+                </button>
+                <button onclick="quickExportComparison()" class="w-full bg-purple-100 text-purple-700 py-2 rounded-lg hover:bg-purple-200 flex items-center justify-center gap-2 text-sm">
+                    <i class="fas fa-bolt"></i>
+                    تحميل سريع
+                </button>
+            </div>
+        </div>
+
+        <!-- Images Export -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-images text-orange-500 text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-lg">روابط الصور</h3>
+                    <p class="text-sm text-gray-500">قائمة روابط الصور للتحميل</p>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <select id="images-app" class="w-full border rounded-lg px-3 py-2">
+                    <option value="">جميع التطبيقات</option>
+                    <option value="ben_soliman">بن سليمان</option>
+                    <option value="tager_elsaada">تاجر السعادة</option>
+                    <option value="el_rabie">الربيع</option>
+                    <option value="gomla_shoaib">جملة شعيب</option>
+                </select>
+                <input type="number" id="images-max" class="w-full border rounded-lg px-3 py-2" value="100" min="1" max="10000" placeholder="الحد الأقصى">
+                <button onclick="exportImages()" class="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 flex items-center justify-center gap-2">
+                    <i class="fas fa-link"></i>
+                    جلب الروابط
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Jobs Table -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">
+                <i class="fas fa-history text-gray-500"></i>
+                سجل التصدير
+            </h3>
+            <button onclick="loadExportJobs()" class="text-blue-500 hover:underline text-sm">
+                <i class="fas fa-sync-alt"></i> تحديث
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">#</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">النوع</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الحالة</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">السجلات</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">الحجم</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">التاريخ</th>
+                        <th class="px-4 py-3 text-right text-sm font-medium text-gray-500">تحميل</th>
+                    </tr>
+                </thead>
+                <tbody id="export-jobs-body" class="divide-y divide-gray-200">
+                    <tr><td colspan="7" class="text-center py-8 text-gray-500">جاري التحميل...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Image URLs Modal -->
+    <div id="images-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">روابط الصور</h3>
+                <button onclick="closeImagesModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto max-h-[60vh]">
+                <div id="images-list" class="space-y-2"></div>
+            </div>
+            <div class="p-4 border-t flex justify-end gap-2">
+                <button onclick="copyAllUrls()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    <i class="fas fa-copy"></i> نسخ الكل
+                </button>
+                <button onclick="closeImagesModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">
+                    إغلاق
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let imageUrls = [];
+
+    async function exportProducts() {
+        const app = document.getElementById('products-app').value;
+        const includePrices = document.getElementById('products-prices').checked;
+
+        showToast('جاري إنشاء ملف التصدير...', 'info');
+
+        try {
+            const data = await fetchAPI('/export/products', {
+                method: 'POST',
+                body: JSON.stringify({
+                    source_app: app || null,
+                    include_prices: includePrices
+                })
+            });
+
+            showToast(`تم تصدير ${data.records_count} منتج بنجاح`, 'success');
+            loadExportJobs();
+        } catch (err) {
+            console.error('Export error:', err);
+        }
+    }
+
+    function quickExportProducts() {
+        const app = document.getElementById('products-app').value;
+        const includePrices = document.getElementById('products-prices').checked;
+
+        let url = `${API_BASE}/export/quick/products?include_prices=${includePrices}`;
+        if (app) url += `&source_app=${app}`;
+
+        window.open(url, '_blank');
+        showToast('جاري التحميل...', 'info');
+    }
+
+    async function exportPrices() {
+        const app = document.getElementById('prices-app').value;
+        const startDate = document.getElementById('prices-start').value;
+        const endDate = document.getElementById('prices-end').value;
+
+        showToast('جاري إنشاء ملف التصدير...', 'info');
+
+        try {
+            const body = { source_app: app || null };
+            if (startDate) body.start_date = startDate + 'T00:00:00';
+            if (endDate) body.end_date = endDate + 'T23:59:59';
+
+            const data = await fetchAPI('/export/prices', {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+
+            showToast(`تم تصدير ${data.records_count} سجل أسعار بنجاح`, 'success');
+            loadExportJobs();
+        } catch (err) {
+            console.error('Export error:', err);
+        }
+    }
+
+    async function exportComparison() {
+        const apps = [];
+        if (document.getElementById('compare-ben').checked) apps.push('ben_soliman');
+        if (document.getElementById('compare-tager').checked) apps.push('tager_elsaada');
+        if (document.getElementById('compare-rabie').checked) apps.push('el_rabie');
+        if (document.getElementById('compare-shoaib').checked) apps.push('gomla_shoaib');
+
+        showToast('جاري إنشاء ملف التصدير...', 'info');
+
+        try {
+            const data = await fetchAPI('/export/comparison', {
+                method: 'POST',
+                body: JSON.stringify({
+                    apps: apps.join(',')
+                })
+            });
+
+            showToast(`تم تصدير ${data.records_count} منتج مقارن بنجاح`, 'success');
+            loadExportJobs();
+        } catch (err) {
+            console.error('Export error:', err);
+        }
+    }
+
+    function quickExportComparison() {
+        const apps = [];
+        if (document.getElementById('compare-ben').checked) apps.push('ben_soliman');
+        if (document.getElementById('compare-tager').checked) apps.push('tager_elsaada');
+        if (document.getElementById('compare-rabie').checked) apps.push('el_rabie');
+        if (document.getElementById('compare-shoaib').checked) apps.push('gomla_shoaib');
+
+        const url = `${API_BASE}/export/quick/comparison?apps=${apps.join(',')}`;
+        window.open(url, '_blank');
+        showToast('جاري التحميل...', 'info');
+    }
+
+    async function exportImages() {
+        const app = document.getElementById('images-app').value;
+        const maxImages = document.getElementById('images-max').value || 100;
+
+        try {
+            const data = await fetchAPI('/export/images', {
+                method: 'POST',
+                body: JSON.stringify({
+                    source_app: app || null,
+                    max_images: parseInt(maxImages)
+                })
+            });
+
+            imageUrls = data.images;
+            showImagesModal(data);
+        } catch (err) {
+            console.error('Export error:', err);
+        }
+    }
+
+    function showImagesModal(data) {
+        const list = document.getElementById('images-list');
+        list.innerHTML = data.images.map(img => `
+            <div class="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                <img src="${img.image_url}" class="w-10 h-10 object-cover rounded" onerror="this.src='/static/no-image.png'">
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate">${img.filename}</div>
+                    <div class="text-xs text-gray-500 truncate ltr">${img.image_url}</div>
+                </div>
+                <a href="${img.image_url}" target="_blank" class="text-blue-500 hover:text-blue-700">
+                    <i class="fas fa-external-link-alt"></i>
+                </a>
+            </div>
+        `).join('');
+
+        document.getElementById('images-modal').classList.remove('hidden');
+    }
+
+    function closeImagesModal() {
+        document.getElementById('images-modal').classList.add('hidden');
+    }
+
+    function copyAllUrls() {
+        const urls = imageUrls.map(img => img.image_url).join('\n');
+        navigator.clipboard.writeText(urls);
+        showToast(`تم نسخ ${imageUrls.length} رابط`, 'success');
+    }
+
+    async function loadExportJobs() {
+        try {
+            const data = await fetchAPI('/export/jobs?per_page=10');
+            const tbody = document.getElementById('export-jobs-body');
+
+            if (data.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">لا توجد عمليات تصدير</td></tr>';
+                return;
+            }
+
+            const jobTypes = {
+                'products_csv': 'منتجات',
+                'prices_csv': 'أسعار',
+                'comparison_csv': 'مقارنة'
+            };
+
+            const statusColors = {
+                'completed': 'bg-green-100 text-green-800',
+                'processing': 'bg-yellow-100 text-yellow-800',
+                'pending': 'bg-gray-100 text-gray-800',
+                'failed': 'bg-red-100 text-red-800'
+            };
+
+            const statusLabels = {
+                'completed': 'مكتمل',
+                'processing': 'قيد التنفيذ',
+                'pending': 'قيد الانتظار',
+                'failed': 'فشل'
+            };
+
+            tbody.innerHTML = data.data.map(job => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 text-sm">${job.id}</td>
+                    <td class="px-4 py-3 text-sm">${jobTypes[job.job_type] || job.job_type}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs rounded-full ${statusColors[job.status] || 'bg-gray-100'}">
+                            ${statusLabels[job.status] || job.status}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm">${job.records_count || '-'}</td>
+                    <td class="px-4 py-3 text-sm">${job.file_size_bytes ? formatBytes(job.file_size_bytes) : '-'}</td>
+                    <td class="px-4 py-3 text-sm">${new Date(job.created_at).toLocaleString('ar-EG')}</td>
+                    <td class="px-4 py-3">
+                        ${job.status === 'completed' ? `
+                            <a href="${API_BASE}/export/jobs/${job.id}/download" class="text-blue-500 hover:text-blue-700">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        ` : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            console.error('Error loading export jobs:', err);
+        }
+    }
+
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Load jobs on page load
+    document.addEventListener('DOMContentLoaded', loadExportJobs);
+</script>
+{% endblock %}
