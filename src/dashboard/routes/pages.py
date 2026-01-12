@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import select, func, desc
 
 from src.database.connection import get_async_session
-from src.models.database import Product, Category, PriceRecord, ScrapeJob
+from src.models.database import Product, Category, Brand, PriceRecord, ScrapeJob
 from src.models.enums import SourceApp
 
 router = APIRouter()
@@ -78,6 +78,7 @@ async def products_page(
     request: Request,
     source: Optional[str] = Query(None, description="Filter by source app"),
     category_id: Optional[str] = Query(None, description="Filter by category"),
+    brand_id: Optional[str] = Query(None, description="Filter by brand"),
     available_only: bool = Query(False, description="Show only available products"),
     search: Optional[str] = Query(None, description="Search in product name"),
     page: int = Query(1, ge=1, description="Page number"),
@@ -94,6 +95,14 @@ async def products_page(
         except ValueError:
             pass
 
+    # Convert brand_id to int if provided and not empty
+    brand_id_int = None
+    if brand_id and brand_id.strip():
+        try:
+            brand_id_int = int(brand_id)
+        except ValueError:
+            pass
+
     async with get_async_session() as session:
         # Build query
         query = select(Product).where(Product.is_active == True)
@@ -103,6 +112,9 @@ async def products_page(
 
         if category_id_int:
             query = query.where(Product.category_id == category_id_int)
+
+        if brand_id_int:
+            query = query.where(Product.brand_id == brand_id_int)
 
         if search:
             query = query.where(Product.name.ilike(f"%{search}%"))
@@ -122,6 +134,12 @@ async def products_page(
             select(Category).order_by(Category.name)
         )
         categories = list(categories_result.scalars().all())
+
+        # Get brands for filter dropdown
+        brands_result = await session.execute(
+            select(Brand).order_by(Brand.name)
+        )
+        brands = list(brands_result.scalars().all())
 
         # Get latest prices for products
         products_with_prices = []
@@ -146,12 +164,14 @@ async def products_page(
             "request": request,
             "products": products_with_prices,
             "categories": categories,
+            "brands": brands,
             "total": total or 0,
             "page": page,
             "per_page": per_page,
             "total_pages": total_pages,
             "source": source or "",
             "category_id": category_id_int,
+            "brand_id": brand_id_int,
             "available_only": available_only,
             "search": search or "",
             "source_apps": [
@@ -189,6 +209,14 @@ async def product_detail(request: Request, product_id: int):
             )
             category = category_result.scalar_one_or_none()
 
+        # Get brand
+        brand = None
+        if product.brand_id:
+            brand_result = await session.execute(
+                select(Brand).where(Brand.id == product.brand_id)
+            )
+            brand = brand_result.scalar_one_or_none()
+
         # Get latest price
         latest_price_result = await session.execute(
             select(PriceRecord)
@@ -220,6 +248,7 @@ async def product_detail(request: Request, product_id: int):
             "request": request,
             "product": product,
             "category": category,
+            "brand": brand,
             "latest_price": latest_price,
             "matching_product": matching_product,
         },

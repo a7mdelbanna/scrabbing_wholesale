@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from src.database.connection import get_async_session, init_db
-from src.models.database import Product, Category, PriceRecord, ScrapeJob
+from src.models.database import Product, Category, Brand, PriceRecord, ScrapeJob
 from src.models.enums import SourceApp
 
 # Ben Soliman API Configuration
@@ -110,6 +110,20 @@ async def fetch_products(client: httpx.AsyncClient, category_id: int = None) -> 
     return data.get("data", [])
 
 
+async def fetch_brands(client: httpx.AsyncClient) -> list:
+    """Fetch brands from Ben Soliman API."""
+    print("Fetching brands...")
+    resp = await client.get(
+        f"{BASE_URL}/customer_app/api/v2/brands",
+        params={"domain_id": 2},
+        headers=HEADERS,
+    )
+    data = resp.json()
+    brands = data.get("Brands", [])
+    print(f"Found {len(brands)} brands")
+    return brands
+
+
 async def main():
     """Main scraping function."""
     print("=" * 50)
@@ -173,6 +187,44 @@ async def main():
                 category_map[cat.external_id] = cat.id
             print(f"Built category map with {len(category_map)} entries")
 
+        # Fetch and store brands
+        brands = await fetch_brands(client)
+
+        async with get_async_session() as session:
+            for brand_data in brands:
+                brand_id = str(brand_data.get("Brand_Id", ""))
+
+                # Check if brand exists
+                result = await session.execute(
+                    select(Brand).where(
+                        Brand.source_app == SourceApp.BEN_SOLIMAN.value,
+                        Brand.external_id == brand_id,
+                    )
+                )
+                existing = result.scalar_one_or_none()
+
+                if not existing:
+                    brand = Brand(
+                        source_app=SourceApp.BEN_SOLIMAN.value,
+                        external_id=brand_id,
+                        name=brand_data.get("Name", ""),
+                        name_ar=brand_data.get("Name"),
+                        image_url=f"{IMAGE_SERVER}/ItemImage/{brand_data.get('ImageName')}" if brand_data.get("ImageName") else None,
+                    )
+                    session.add(brand)
+
+            await session.commit()
+            print(f"Stored {len(brands)} brands")
+
+            # Build brand mapping: external_id -> database_id
+            brand_map = {}
+            brand_result = await session.execute(
+                select(Brand).where(Brand.source_app == SourceApp.BEN_SOLIMAN.value)
+            )
+            for b in brand_result.scalars():
+                brand_map[b.external_id] = b.id
+            print(f"Built brand map with {len(brand_map)} entries")
+
         # Fetch all products
         print("\nFetching products...")
         all_products = await fetch_products(client)
@@ -190,6 +242,10 @@ async def main():
                 # Get category database ID from CategoryCode
                 category_code = str(prod_data.get("CategoryCode", ""))
                 category_db_id = category_map.get(category_code)
+
+                # Get brand database ID from BrandId
+                brand_ext_id = str(prod_data.get("BrandId", ""))
+                brand_db_id = brand_map.get(brand_ext_id)
 
                 # Check if product exists
                 result = await session.execute(
@@ -223,6 +279,7 @@ async def main():
                     existing.image_url = local_image_path or original_image_url
                     existing.barcode = prod_data.get("BarCode")
                     existing.category_id = category_db_id  # Link to category
+                    existing.brand_id = brand_db_id  # Link to brand
                     existing.brand = str(prod_data.get("BrandId")) if prod_data.get("BrandId") else None
                     existing.last_seen_at = datetime.now(timezone.utc)
                     product = existing
@@ -237,6 +294,7 @@ async def main():
                         description=prod_data.get("Description"),
                         description_ar=prod_data.get("Description"),
                         brand=str(prod_data.get("BrandId")) if prod_data.get("BrandId") else None,
+                        brand_id=brand_db_id,  # Link to brand
                         sku=external_id,
                         barcode=prod_data.get("BarCode"),
                         image_url=local_image_path or original_image_url,

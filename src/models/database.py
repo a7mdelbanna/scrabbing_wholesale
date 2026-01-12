@@ -45,6 +45,29 @@ class Category(Base):
     )
 
 
+class Brand(Base):
+    """Product brands from competitor apps."""
+    __tablename__ = "brands"
+
+    id = Column(Integer, primary_key=True)
+    source_app = Column(String(50), nullable=False)
+    external_id = Column(String(255), nullable=False)
+    name = Column(String(500), nullable=False)
+    name_ar = Column(String(500))
+    image_url = Column(Text)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    products = relationship("Product", back_populates="brand_rel")
+
+    __table_args__ = (
+        UniqueConstraint("source_app", "external_id", name="uq_brand_source_external"),
+        Index("idx_brand_source", "source_app"),
+    )
+
+
 class Product(Base):
     """Products scraped from competitor apps."""
     __tablename__ = "products"
@@ -57,7 +80,8 @@ class Product(Base):
     description = Column(Text)
     description_ar = Column(Text)
     category_id = Column(Integer, ForeignKey("categories.id"))
-    brand = Column(String(255))
+    brand_id = Column(Integer, ForeignKey("brands.id"))
+    brand = Column(String(255))  # Legacy: external brand ID as string
     sku = Column(String(255))
     barcode = Column(String(100))  # For cross-app product matching
     image_url = Column(Text)
@@ -74,6 +98,7 @@ class Product(Base):
 
     # Relationships
     category = relationship("Category", back_populates="products")
+    brand_rel = relationship("Brand", back_populates="products")
     price_records = relationship(
         "PriceRecord",
         back_populates="product",
@@ -86,6 +111,7 @@ class Product(Base):
         Index("idx_product_source", "source_app"),
         Index("idx_product_barcode", "barcode"),
         Index("idx_product_sku", "sku"),
+        Index("idx_product_brand", "brand_id"),
     )
 
     @property

@@ -41,6 +41,17 @@
             </select>
         </div>
 
+        <!-- Brand -->
+        <div class="w-48">
+            <label class="block text-sm text-gray-600 mb-1">الماركة</label>
+            <select name="brand_id" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">الكل</option>
+                {% for brand in brands %}
+                <option value="{{ brand.id }}" {% if brand_id == brand.id %}selected{% endif %}>{{ brand.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
         <!-- Submit -->
         <button type="submit" class="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition">
             بحث
@@ -123,7 +134,7 @@
 {% if total_pages > 1 %}
 <div class="flex justify-center items-center gap-2 mt-8">
     {% if page > 1 %}
-    <a href="?page={{ page - 1 }}{% if source %}&source={{ source }}{% endif %}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+    <a href="?page={{ page - 1 }}{% if source %}&source={{ source }}{% endif %}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if brand_id %}&brand_id={{ brand_id }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
        class="px-4 py-2 bg-white rounded-md shadow hover:bg-gray-50 transition">
         السابق
     </a>
@@ -134,7 +145,7 @@
     </span>
 
     {% if page < total_pages %}
-    <a href="?page={{ page + 1 }}{% if source %}&source={{ source }}{% endif %}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+    <a href="?page={{ page + 1 }}{% if source %}&source={{ source }}{% endif %}{% if category_id %}&category_id={{ category_id }}{% endif %}{% if brand_id %}&brand_id={{ brand_id }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
        class="px-4 py-2 bg-white rounded-md shadow hover:bg-gray-50 transition">
         التالي
     </a>
