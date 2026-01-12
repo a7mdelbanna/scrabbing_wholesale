@@ -29,6 +29,14 @@ from src.api.routes import (
 )
 from src.api.middleware.error_handler import APIException
 from src.api.middleware.rate_limiter import rate_limit_middleware
+from src.api.middleware.request_logger import request_logging_middleware
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +97,9 @@ Include your API key in the `X-API-Key` header.
     # Rate limiting middleware
     app.add_middleware(BaseHTTPMiddleware, dispatch=rate_limit_middleware)
 
+    # Request logging middleware
+    app.add_middleware(BaseHTTPMiddleware, dispatch=request_logging_middleware)
+
     # Exception handler for custom API exceptions
     @app.exception_handler(APIException)
     async def api_exception_handler(request: Request, exc: APIException):
@@ -99,6 +110,21 @@ Include your API key in the `X-API-Key` header.
                     "code": exc.error_code,
                     "message": exc.message,
                     "details": exc.details,
+                }
+            },
+        )
+
+    # Global exception handler for unhandled errors
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        logger.error(f"Unhandled exception: {exc}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": "An unexpected error occurred",
+                    "details": {"type": type(exc).__name__} if logger.isEnabledFor(logging.DEBUG) else {},
                 }
             },
         )

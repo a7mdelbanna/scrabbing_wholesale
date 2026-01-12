@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scraping_api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://scraper:scraper_pass@db:5432/scraping_db
+      - REDIS_URL=redis://redis:6379/0
+      - API_ENV=production
+      - LOG_LEVEL=INFO
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./exports:/app/exports
+      - ./static:/app/static
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  db:
+    image: postgres:15-alpine
+    container_name: scraping_db
+    environment:
+      - POSTGRES_USER=scraper
+      - POSTGRES_PASSWORD=scraper_pass
+      - POSTGRES_DB=scraping_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scraper -d scraping_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: scraping_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Optional: Celery worker for background tasks
+  # worker:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: scraping_worker
+  #   command: celery -A src.workers.celery_app worker --loglevel=info
+  #   environment:
+  #     - DATABASE_URL=postgresql://scraper:scraper_pass@db:5432/scraping_db
+  #     - REDIS_URL=redis://redis:6379/0
+  #   depends_on:
+  #     - db
+  #     - redis
+  #   restart: unless-stopped
+
+  # Optional: Celery beat for scheduled tasks
+  # beat:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: scraping_beat
+  #   command: celery -A src.workers.celery_app beat --loglevel=info
+  #   environment:
+  #     - DATABASE_URL=postgresql://scraper:scraper_pass@db:5432/scraping_db
+  #     - REDIS_URL=redis://redis:6379/0
+  #   depends_on:
+  #     - db
+  #     - redis
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
