@@ -279,3 +279,33 @@ class APIKey(Base):
         Index("idx_api_key_hash", "key_hash"),
         Index("idx_api_key_active", "is_active"),
     )
+
+
+class ProductLink(Base):
+    """Cross-app product links for matching same products across different apps."""
+    __tablename__ = "product_links"
+
+    id = Column(Integer, primary_key=True)
+    product_a_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    product_b_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    link_type = Column(String(50), default="manual")  # barcode, manual, suggested, verified
+    confidence_score = Column(Numeric(5, 4))  # 0.0000 to 1.0000 for suggested links
+    match_reason = Column(String(255))  # Description of why products were linked
+    verified_by = Column(String(100))  # Who verified the link
+    verified_at = Column(DateTime(timezone=True))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    product_a = relationship("Product", foreign_keys=[product_a_id], backref="links_as_a")
+    product_b = relationship("Product", foreign_keys=[product_b_id], backref="links_as_b")
+
+    __table_args__ = (
+        # Ensure we don't create duplicate links (A-B same as B-A)
+        UniqueConstraint("product_a_id", "product_b_id", name="uq_product_link"),
+        Index("idx_product_link_a", "product_a_id"),
+        Index("idx_product_link_b", "product_b_id"),
+        Index("idx_product_link_type", "link_type"),
+        Index("idx_product_link_active", "is_active"),
+    )
