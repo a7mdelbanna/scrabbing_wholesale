@@ -464,3 +464,37 @@ async def banners_page(request: Request):
     """Banners and sliders page."""
     templates = request.app.state.templates
     return templates.TemplateResponse("banners.html", {"request": request})
+
+
+@router.get("/images", response_class=HTMLResponse)
+async def images_page(request: Request):
+    """Image download page."""
+    templates = request.app.state.templates
+
+    categories = []
+    brands = []
+
+    try:
+        async with get_async_session() as session:
+            # Get categories for filter dropdown
+            categories_result = await session.execute(
+                select(Category).order_by(Category.name)
+            )
+            categories = list(categories_result.scalars().all())
+
+            # Get brands for filter dropdown
+            brands_result = await session.execute(
+                select(Brand).order_by(Brand.name)
+            )
+            brands = list(brands_result.scalars().all())
+    except Exception as e:
+        logger.warning(f"Database error on images page: {e}")
+
+    return templates.TemplateResponse(
+        "images.html",
+        {
+            "request": request,
+            "categories": categories,
+            "brands": brands,
+        },
+    )

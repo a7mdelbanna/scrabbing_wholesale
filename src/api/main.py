@@ -23,6 +23,7 @@ from src.api.routes import (
     banners,
     scraper,
     export,
+    images,
     analytics,
     auth,
     system,
@@ -145,6 +146,7 @@ Include your API key in the `X-API-Key` header.
     app.include_router(banners.router, prefix=api_v1_prefix)
     app.include_router(scraper.router, prefix=api_v1_prefix)
     app.include_router(export.router, prefix=api_v1_prefix)
+    app.include_router(images.router, prefix=api_v1_prefix)
     app.include_router(analytics.router, prefix=api_v1_prefix)
 
     return app

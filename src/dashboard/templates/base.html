@@ -110,6 +110,12 @@
                         تصدير
                     </a>
 
+                    <!-- Images -->
+                    <a href="/images" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 flex items-center gap-1 {% if request.url.path == '/images' %}bg-blue-50 text-blue-600{% endif %}">
+                        <i class="fas fa-images text-orange-500"></i>
+                        الصور
+                    </a>
+
                     <!-- More Dropdown -->
                     <div class="dropdown relative">
                         <button class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 flex items-center gap-1 {% if '/offers' in request.url.path or '/banners' in request.url.path %}bg-blue-50 text-blue-600{% endif %}">
