@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dashboard{% endblock %} - Competitor Prices</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Arabic font support */
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+        }
+        /* RTL adjustments */
+        .ltr {
+            direction: ltr;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="text-xl font-bold text-blue-600">
+                        Competitor Dashboard
+                    </a>
+                </div>
+                <div class="flex items-center space-x-4 space-x-reverse">
+                    <a href="/" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 {% if request.url.path == '/' %}bg-gray-100{% endif %}">
+                        الرئيسية
+                    </a>
+                    <a href="/products" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 {% if '/products' in request.url.path and '/products/' not in request.url.path %}bg-gray-100{% endif %}">
+                        المنتجات
+                    </a>
+                    <a href="/comparison" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 {% if request.url.path == '/comparison' %}bg-gray-100{% endif %}">
+                        مقارنة الاسعار
+                    </a>
+                    <a href="/jobs" class="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 {% if request.url.path == '/jobs' %}bg-gray-100{% endif %}">
+                        المهام
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-6 px-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t mt-auto">
+        <div class="max-w-7xl mx-auto py-4 px-4 text-center text-gray-500 text-sm">
+            Competitor Price Scraper Dashboard
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

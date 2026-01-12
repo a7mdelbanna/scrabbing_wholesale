@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}المهام{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-800 mb-2">سجل المهام</h1>
+    <p class="text-gray-600">اجمالي {{ total }} مهمة</p>
+</div>
+
+{% if jobs %}
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-right">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">ID</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">التطبيق</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">النوع</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">الحالة</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">المنتجات</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">جديد</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">محدث</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">اخطاء</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">البداية</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">الانتهاء</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for job in jobs %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 text-gray-600 ltr">{{ job.id }}</td>
+                    <td class="px-6 py-4">
+                        <span class="{% if job.source_app == 'ben_soliman' %}text-blue-600{% else %}text-green-600{% endif %}">
+                            {% if job.source_app == 'ben_soliman' %}بن سليمان{% else %}تاجر السعادة{% endif %}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600">
+                        {% if job.job_type == 'full' %}
+                        كامل
+                        {% elif job.job_type == 'incremental' %}
+                        تحديث
+                        {% elif job.job_type == 'categories' %}
+                        اقسام
+                        {% elif job.job_type == 'offers' %}
+                        عروض
+                        {% else %}
+                        {{ job.job_type }}
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if job.status == 'completed' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">مكتمل</span>
+                        {% elif job.status == 'running' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 flex items-center w-fit">
+                            <svg class="animate-spin w-3 h-3 ml-1" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                            </svg>
+                            قيد التشغيل
+                        </span>
+                        {% elif job.status == 'failed' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">فشل</span>
+                        {% elif job.status == 'pending' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700">قيد الانتظار</span>
+                        {% else %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">{{ job.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-gray-600 ltr">{{ job.products_scraped or 0 }}</td>
+                    <td class="px-6 py-4 text-green-600 ltr">{{ job.products_new or 0 }}</td>
+                    <td class="px-6 py-4 text-blue-600 ltr">{{ job.products_updated or 0 }}</td>
+                    <td class="px-6 py-4 {% if job.errors_count and job.errors_count > 0 %}text-red-600{% else %}text-gray-400{% endif %} ltr">
+                        {{ job.errors_count or 0 }}
+                    </td>
+                    <td class="px-6 py-4 text-gray-500 text-sm ltr">
+                        {{ job.started_at.strftime('%Y-%m-%d %H:%M') if job.started_at else '-' }}
+                    </td>
+                    <td class="px-6 py-4 text-gray-500 text-sm ltr">
+                        {{ job.completed_at.strftime('%Y-%m-%d %H:%M') if job.completed_at else '-' }}
+                    </td>
+                </tr>
+                {% if job.error_details and job.errors_count and job.errors_count > 0 %}
+                <tr class="bg-red-50">
+                    <td colspan="10" class="px-6 py-3">
+                        <div class="text-sm text-red-600">
+                            <strong>تفاصيل الاخطاء:</strong>
+                            <pre class="mt-1 text-xs bg-red-100 p-2 rounded overflow-x-auto ltr">{{ job.error_details | tojson(indent=2) }}</pre>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="flex justify-center items-center gap-2 mt-8">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}"
+       class="px-4 py-2 bg-white rounded-md shadow hover:bg-gray-50 transition">
+        السابق
+    </a>
+    {% endif %}
+
+    <span class="px-4 py-2 text-gray-600">
+        صفحة {{ page }} من {{ total_pages }}
+    </span>
+
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}"
+       class="px-4 py-2 bg-white rounded-md shadow hover:bg-gray-50 transition">
+        التالي
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="bg-white rounded-lg shadow p-12 text-center">
+    <div class="text-gray-400 text-6xl mb-4">📋</div>
+    <p class="text-gray-500 text-lg">لا توجد مهام حتى الان</p>
+</div>
+{% endif %}
+
+<!-- Status Legend -->
+<div class="mt-6 bg-white rounded-lg shadow p-4">
+    <h3 class="font-medium text-gray-700 mb-3">دليل الحالات</h3>
+    <div class="flex flex-wrap gap-4 text-sm">
+        <div class="flex items-center">
+            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 ml-2">مكتمل</span>
+            <span class="text-gray-600">تمت المهمة بنجاح</span>
+        </div>
+        <div class="flex items-center">
+            <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 ml-2">قيد التشغيل</span>
+            <span class="text-gray-600">المهمة قيد التنفيذ</span>
+        </div>
+        <div class="flex items-center">
+            <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700 ml-2">قيد الانتظار</span>
+            <span class="text-gray-600">في انتظار التشغيل</span>
+        </div>
+        <div class="flex items-center">
+            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700 ml-2">فشل</span>
+            <span class="text-gray-600">حدث خطأ اثناء التنفيذ</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

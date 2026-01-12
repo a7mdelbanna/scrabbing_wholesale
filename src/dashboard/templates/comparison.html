@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}مقارنة الاسعار{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-800 mb-2">مقارنة الاسعار</h1>
+    <p class="text-gray-600">{{ total }} منتج متطابق بين التطبيقين</p>
+</div>
+
+{% if comparisons %}
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-right">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">الباركود</th>
+                    <th class="px-6 py-4 text-sm font-medium text-blue-600">بن سليمان</th>
+                    <th class="px-6 py-4 text-sm font-medium text-green-600">تاجر السعادة</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">الفرق</th>
+                    <th class="px-6 py-4 text-sm font-medium text-gray-500">الاقل</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for item in comparisons %}
+                <tr class="hover:bg-gray-50">
+                    <!-- Barcode -->
+                    <td class="px-6 py-4">
+                        <span class="text-gray-600 ltr text-sm">{{ item.barcode }}</span>
+                    </td>
+
+                    <!-- Ben Soliman -->
+                    <td class="px-6 py-4">
+                        {% if item.ben_soliman %}
+                        <a href="/products/{{ item.ben_soliman.product.id }}" class="hover:underline">
+                            <div class="font-medium text-gray-800 truncate max-w-xs">
+                                {{ item.ben_soliman.product.name[:40] }}{% if item.ben_soliman.product.name|length > 40 %}...{% endif %}
+                            </div>
+                            {% if item.ben_soliman.price %}
+                            <div class="text-blue-600 font-bold ltr">
+                                {{ "%.2f"|format(item.ben_soliman.price.price) }} ج.م
+                            </div>
+                            {% else %}
+                            <div class="text-gray-400 text-sm">السعر غير متوفر</div>
+                            {% endif %}
+                        </a>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Tager -->
+                    <td class="px-6 py-4">
+                        {% if item.tager_elsaada %}
+                        <a href="/products/{{ item.tager_elsaada.product.id }}" class="hover:underline">
+                            <div class="font-medium text-gray-800 truncate max-w-xs">
+                                {{ item.tager_elsaada.product.name[:40] }}{% if item.tager_elsaada.product.name|length > 40 %}...{% endif %}
+                            </div>
+                            {% if item.tager_elsaada.price %}
+                            <div class="text-green-600 font-bold ltr">
+                                {{ "%.2f"|format(item.tager_elsaada.price.price) }} ج.م
+                            </div>
+                            {% else %}
+                            <div class="text-gray-400 text-sm">السعر غير متوفر</div>
+                            {% endif %}
+                        </a>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Difference -->
+                    <td class="px-6 py-4">
+                        {% if item.difference is defined %}
+                        <span class="{% if item.difference > 0 %}text-red-600{% elif item.difference < 0 %}text-green-600{% else %}text-gray-500{% endif %} font-medium ltr">
+                            {% if item.difference > 0 %}+{% endif %}{{ "%.2f"|format(item.difference) }} ج.م
+                        </span>
+                        <div class="text-xs text-gray-400 ltr">
+                            ({% if item.difference_pct > 0 %}+{% endif %}{{ "%.1f"|format(item.difference_pct) }}%)
+                        </div>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Cheaper -->
+                    <td class="px-6 py-4">
+                        {% if item.cheaper == 'ben_soliman' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">بن سليمان</span>
+                        {% elif item.cheaper == 'tager_elsaada' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">تاجر السعادة</span>
+                        {% else %}
+                        <span class="text-gray-400">متساوي</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="bg-white rounded-lg shadow p-12 text-center">
+    <div class="text-gray-400 text-6xl mb-4">📊</div>
+    <p class="text-gray-500 text-lg mb-2">لا توجد منتجات متطابقة</p>
+    <p class="text-gray-400 text-sm">المنتجات المتطابقة يتم تحديدها عن طريق الباركود</p>
+</div>
+{% endif %}
+
+<!-- Legend -->
+<div class="mt-6 bg-white rounded-lg shadow p-4">
+    <h3 class="font-medium text-gray-700 mb-3">ملاحظات</h3>
+    <ul class="text-sm text-gray-600 space-y-2">
+        <li class="flex items-center">
+            <span class="w-3 h-3 rounded-full bg-blue-500 ml-2"></span>
+            بن سليمان: المنتجات من تطبيق بن سليمان
+        </li>
+        <li class="flex items-center">
+            <span class="w-3 h-3 rounded-full bg-green-500 ml-2"></span>
+            تاجر السعادة: المنتجات من تطبيق تاجر السعادة
+        </li>
+        <li class="flex items-center">
+            <span class="text-green-600 ml-2">-</span>
+            الفرق السالب يعني ان بن سليمان اقل
+        </li>
+        <li class="flex items-center">
+            <span class="text-red-600 ml-2">+</span>
+            الفرق الموجب يعني ان تاجر السعادة اقل
+        </li>
+    </ul>
+</div>
+{% endblock %}

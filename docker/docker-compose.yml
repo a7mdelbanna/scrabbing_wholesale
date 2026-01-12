@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  scraper:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: competitor-scraper
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://scraper:${DB_PASSWORD}@postgres:5432/competitor_data
+      - REDIS_URL=redis://redis:6379/0
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      # App credentials (set in .env)
+      - TAGER_ELSAADA_USERNAME=${TAGER_ELSAADA_USERNAME}
+      - TAGER_ELSAADA_PASSWORD=${TAGER_ELSAADA_PASSWORD}
+      - BEN_SOLIMAN_USERNAME=${BEN_SOLIMAN_USERNAME}
+      - BEN_SOLIMAN_PASSWORD=${BEN_SOLIMAN_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - scraper-network
+    volumes:
+      - scraper-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: competitor-dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://scraper:${DB_PASSWORD}@postgres:5432/competitor_data
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - scraper-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: scraper-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=scraper
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=competitor_data
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - scraper-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scraper -d competitor_data"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: scraper-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - scraper-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  scraper-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  scraper-logs:

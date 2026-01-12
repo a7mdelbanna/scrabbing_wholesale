@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}المنتجات{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-800 mb-2">المنتجات</h1>
+    <p class="text-gray-600">اجمالي {{ total }} منتج</p>
+</div>
+
+<!-- Filters -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <form method="get" class="flex flex-wrap gap-4 items-end">
+        <!-- Search -->
+        <div class="flex-1 min-w-[200px]">
+            <label class="block text-sm text-gray-600 mb-1">بحث</label>
+            <input type="text" name="search" value="{{ search }}"
+                   placeholder="ابحث عن منتج..."
+                   class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- Source App -->
+        <div class="w-48">
+            <label class="block text-sm text-gray-600 mb-1">التطبيق</label>
+            <select name="source" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">الكل</option>
+                {% for app in source_apps %}
+                <option value="{{ app.value }}" {% if source == app.value %}selected{% endif %}>{{ app.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Category -->
+        <div class="w-48">
+            <label class="block text-sm text-gray-600 mb-1">القسم</label>
+            <select name="category_id" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">الكل</option>
+                {% for cat in categories %}
+                <option value="{{ cat.id }}" {% if category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition">
+            بحث
+        </button>
+        <a href="/products" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition">
+            مسح
+        </a>
+    </form>
+</div>
+
+<!-- Products Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    {% for item in products %}
+    <a href="/products/{{ item.product.id }}" class="bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden">
+        <!-- Image -->
+        {% if item.product.image_url and item.product.image_url.startswith('/static') %}
+        <div class="h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
+            <img src="{{ item.product.image_url }}" alt="{{ item.product.name }}"
+                 class="max-h-full max-w-full object-contain"
+                 onerror="this.parentElement.innerHTML='<div class=\'text-center\'><div class=\'text-blue-300 text-5xl mb-2\'>📦</div><div class=\'text-blue-400 text-xs\'>{{ item.product.external_id }}</div></div>'">
+        </div>
+        {% else %}
+        <div class="h-48 bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
+            <div class="text-center">
+                <div class="text-blue-300 text-5xl mb-2">📦</div>
+                <div class="text-blue-400 text-xs">{{ item.product.external_id }}</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Info -->
+        <div class="p-4">
+            <!-- Source Badge -->
+            <div class="mb-2">
+                <span class="px-2 py-1 text-xs rounded-full {% if item.product.source_app == 'ben_soliman' %}bg-blue-100 text-blue-700{% else %}bg-green-100 text-green-700{% endif %}">
+                    {% if item.product.source_app == 'ben_soliman' %}بن سليمان{% else %}تاجر السعادة{% endif %}
+                </span>
+            </div>
+
+            <!-- Name -->
+            <h3 class="font-semibold text-gray-800 mb-2 line-clamp-2 h-12">{{ item.product.name }}</h3>
+
+            <!-- Price -->
+            <div class="flex items-center justify-between">
+                {% if item.latest_price %}
+                <div>
+                    <span class="text-xl font-bold text-blue-600 ltr">{{ "%.2f"|format(item.latest_price.price) }}</span>
+                    <span class="text-sm text-gray-500">ج.م</span>
+                </div>
+                {% if item.latest_price.is_available %}
+                <span class="text-green-500 text-sm">متوفر</span>
+                {% else %}
+                <span class="text-red-500 text-sm">غير متوفر</span>
+                {% endif %}
+                {% else %}
+                <span class="text-gray-400">السعر غير متوفر</span>
+                {% endif %}
+            </div>
+
+            {% if item.latest_price and item.latest_price.discount_percentage and item.latest_price.discount_percentage > 0 %}
+            <div class="mt-2">
+                <span class="px-2 py-1 text-xs rounded bg-red-100 text-red-700">
+                    خصم {{ "%.0f"|format(item.latest_price.discount_percentage) }}%
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
+{% if products|length == 0 %}
+<div class="bg-white rounded-lg shadow p-12 text-center">
+    <div class="text-gray-400 text-6xl mb-4">📦</div>
+    <p class="text-gray-500 text-lg">لا توجد منتجات</p>
+</div>
+{% endif %}
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="flex justify-center items-center gap-2 mt-8">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}&source={{ source or '' }}&category_id={{ category_id or '' }}&search={{ search }}"
+       class="px-4 py-2 bg-white rounded-md shadow hover:bg-gray-50 transition">
+        السابق
+    </a>
+    {% endif %}
+
+    <span class="px-4 py-2 text-gray-600">
+        صفحة {{ page }} من {{ total_pages }}
+    </span>
+
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}&source={{ source or '' }}&category_id={{ category_id or '' }}&search={{ search }}"
+       class="px-4 py-2 bg-white rounded-md shadow hover:bg-gray-50 transition">
+        التالي
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

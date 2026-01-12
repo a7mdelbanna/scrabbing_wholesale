@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}الرئيسية{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-800 mb-2">لوحة التحكم</h1>
+    <p class="text-gray-600">نظرة عامة على بيانات المنافسين</p>
+</div>
+
+{% if db_error %}
+<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6" role="alert">
+    <p class="font-bold">تنبيه</p>
+    <p>{{ db_error }}</p>
+</div>
+{% endif %}
+
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Ben Soliman Products -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                </svg>
+            </div>
+            <div class="mr-4">
+                <p class="text-gray-500 text-sm">بن سليمان</p>
+                <p class="text-2xl font-bold text-gray-800">{{ ben_soliman_count }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tager Products -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                </svg>
+            </div>
+            <div class="mr-4">
+                <p class="text-gray-500 text-sm">تاجر السعادة</p>
+                <p class="text-2xl font-bold text-gray-800">{{ tager_count }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Categories -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                </svg>
+            </div>
+            <div class="mr-4">
+                <p class="text-gray-500 text-sm">الاقسام</p>
+                <p class="text-2xl font-bold text-gray-800">{{ category_count }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Price Records -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+            </div>
+            <div class="mr-4">
+                <p class="text-gray-500 text-sm">سجلات الاسعار</p>
+                <p class="text-2xl font-bold text-gray-800">{{ price_record_count }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Jobs -->
+<div class="bg-white rounded-lg shadow">
+    <div class="px-6 py-4 border-b">
+        <h2 class="text-xl font-semibold text-gray-800">اخر المهام</h2>
+    </div>
+    <div class="p-6">
+        {% if recent_jobs %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-right">
+                <thead>
+                    <tr class="text-gray-500 text-sm border-b">
+                        <th class="pb-3 font-medium">التطبيق</th>
+                        <th class="pb-3 font-medium">النوع</th>
+                        <th class="pb-3 font-medium">الحالة</th>
+                        <th class="pb-3 font-medium">المنتجات</th>
+                        <th class="pb-3 font-medium">التاريخ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in recent_jobs %}
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="py-3">
+                            <span class="{% if job.source_app == 'ben_soliman' %}text-blue-600{% else %}text-green-600{% endif %}">
+                                {% if job.source_app == 'ben_soliman' %}بن سليمان{% else %}تاجر السعادة{% endif %}
+                            </span>
+                        </td>
+                        <td class="py-3">{{ job.job_type }}</td>
+                        <td class="py-3">
+                            {% if job.status == 'completed' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">مكتمل</span>
+                            {% elif job.status == 'running' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">قيد التشغيل</span>
+                            {% elif job.status == 'failed' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">فشل</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">{{ job.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3">{{ job.products_scraped or 0 }}</td>
+                        <td class="py-3 text-gray-500 text-sm ltr">
+                            {{ job.created_at.strftime('%Y-%m-%d %H:%M') if job.created_at else '-' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-center py-8">لا توجد مهام حتى الان</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Links -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+    <a href="/products?source=ben_soliman" class="bg-blue-500 text-white rounded-lg p-6 hover:bg-blue-600 transition">
+        <h3 class="text-lg font-semibold mb-2">منتجات بن سليمان</h3>
+        <p class="text-blue-100">عرض جميع منتجات بن سليمان</p>
+    </a>
+    <a href="/products?source=tager_elsaada" class="bg-green-500 text-white rounded-lg p-6 hover:bg-green-600 transition">
+        <h3 class="text-lg font-semibold mb-2">منتجات تاجر السعادة</h3>
+        <p class="text-green-100">عرض جميع منتجات تاجر السعادة</p>
+    </a>
+    <a href="/comparison" class="bg-purple-500 text-white rounded-lg p-6 hover:bg-purple-600 transition">
+        <h3 class="text-lg font-semibold mb-2">مقارنة الاسعار</h3>
+        <p class="text-purple-100">مقارنة اسعار المنتجات بين التطبيقين</p>
+    </a>
+</div>
+{% endblock %}

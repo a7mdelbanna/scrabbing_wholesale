@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav class="mb-6">
+    <ol class="flex items-center space-x-2 space-x-reverse text-sm">
+        <li><a href="/" class="text-blue-600 hover:underline">الرئيسية</a></li>
+        <li class="text-gray-400">/</li>
+        <li><a href="/products" class="text-blue-600 hover:underline">المنتجات</a></li>
+        <li class="text-gray-400">/</li>
+        <li class="text-gray-600">{{ product.name[:30] }}{% if product.name|length > 30 %}...{% endif %}</li>
+    </ol>
+</nav>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- Product Info -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <!-- Image -->
+        {% if product.image_url and product.image_url.startswith('/static') %}
+        <div class="h-64 bg-gray-100 flex items-center justify-center overflow-hidden">
+            <img src="{{ product.image_url }}" alt="{{ product.name }}"
+                 class="max-h-full max-w-full object-contain"
+                 onerror="this.parentElement.innerHTML='<div class=\'text-center\'><div class=\'text-blue-300 text-7xl mb-3\'>📦</div><div class=\'text-blue-400 text-sm\'>SKU: {{ product.external_id }}</div></div>'">
+        </div>
+        {% else %}
+        <div class="h-64 bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
+            <div class="text-center">
+                <div class="text-blue-300 text-7xl mb-3">📦</div>
+                <div class="text-blue-400 text-sm">SKU: {{ product.external_id }}</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Details -->
+        <div class="p-6">
+            <!-- Source Badge -->
+            <div class="mb-4">
+                <span class="px-3 py-1 text-sm rounded-full {% if product.source_app == 'ben_soliman' %}bg-blue-100 text-blue-700{% else %}bg-green-100 text-green-700{% endif %}">
+                    {% if product.source_app == 'ben_soliman' %}بن سليمان{% else %}تاجر السعادة{% endif %}
+                </span>
+            </div>
+
+            <!-- Name -->
+            <h1 class="text-2xl font-bold text-gray-800 mb-4">{{ product.name }}</h1>
+
+            <!-- Price -->
+            {% if latest_price %}
+            <div class="mb-4">
+                <div class="flex items-baseline gap-2">
+                    <span class="text-3xl font-bold text-blue-600 ltr">{{ "%.2f"|format(latest_price.price) }}</span>
+                    <span class="text-lg text-gray-500">ج.م</span>
+                </div>
+                {% if latest_price.original_price and latest_price.original_price > latest_price.price %}
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="text-gray-400 line-through ltr">{{ "%.2f"|format(latest_price.original_price) }}</span>
+                    <span class="px-2 py-1 text-xs rounded bg-red-100 text-red-700">
+                        خصم {{ "%.0f"|format(latest_price.discount_percentage or 0) }}%
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Availability -->
+            <div class="mb-4">
+                {% if latest_price.is_available %}
+                <span class="flex items-center text-green-600">
+                    <svg class="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    متوفر
+                </span>
+                {% else %}
+                <span class="flex items-center text-red-600">
+                    <svg class="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                    غير متوفر
+                </span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Details Table -->
+            <div class="border-t pt-4">
+                <table class="w-full text-sm">
+                    {% if category %}
+                    <tr class="border-b">
+                        <td class="py-2 text-gray-500">القسم</td>
+                        <td class="py-2 text-gray-800">{{ category.name }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if product.brand %}
+                    <tr class="border-b">
+                        <td class="py-2 text-gray-500">الماركة</td>
+                        <td class="py-2 text-gray-800">{{ product.brand }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if product.barcode %}
+                    <tr class="border-b">
+                        <td class="py-2 text-gray-500">الباركود</td>
+                        <td class="py-2 text-gray-800 ltr">{{ product.barcode }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if product.sku %}
+                    <tr class="border-b">
+                        <td class="py-2 text-gray-500">SKU</td>
+                        <td class="py-2 text-gray-800 ltr">{{ product.sku }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="border-b">
+                        <td class="py-2 text-gray-500">ID</td>
+                        <td class="py-2 text-gray-800 ltr">{{ product.external_id }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Matching Product Link -->
+            {% if matching_product %}
+            <div class="mt-6 p-4 bg-yellow-50 rounded-lg">
+                <p class="text-sm text-yellow-700 mb-2">نفس المنتج موجود في التطبيق الاخر:</p>
+                <a href="/products/{{ matching_product.id }}"
+                   class="inline-flex items-center text-blue-600 hover:underline">
+                    <span>{{ matching_product.name[:40] }}{% if matching_product.name|length > 40 %}...{% endif %}</span>
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                </a>
+            </div>
+            {% endif %}
+
+            {% if product.description %}
+            <div class="mt-6">
+                <h3 class="font-semibold text-gray-700 mb-2">الوصف</h3>
+                <p class="text-gray-600">{{ product.description }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Price History Chart -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">تاريخ الاسعار</h2>
+        <div class="h-80">
+            <canvas id="priceChart"></canvas>
+        </div>
+        <div class="mt-4 text-sm text-gray-500 text-center">
+            اخر 30 يوم
+        </div>
+    </div>
+</div>
+
+<!-- Back Button -->
+<div class="mt-8">
+    <a href="/products" class="inline-flex items-center text-blue-600 hover:underline">
+        <svg class="w-4 h-4 ml-1 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+        العودة للمنتجات
+    </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    const ctx = document.getElementById('priceChart').getContext('2d');
+
+    try {
+        const response = await fetch('/api/products/{{ product.id }}/prices?days=30');
+        const data = await response.json();
+
+        if (data.history && data.history.length > 0) {
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.history.map(p => {
+                        const date = new Date(p.date);
+                        return date.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' });
+                    }),
+                    datasets: [{
+                        label: 'السعر (ج.م)',
+                        data: data.history.map(p => p.price),
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            rtl: true,
+                            textDirection: 'rtl',
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y.toFixed(2) + ' ج.م';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + ' ج.م';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            document.getElementById('priceChart').parentNode.innerHTML =
+                '<div class="h-80 flex items-center justify-center text-gray-400">لا توجد بيانات اسعار</div>';
+        }
+    } catch (error) {
+        console.error('Error loading price history:', error);
+        document.getElementById('priceChart').parentNode.innerHTML =
+            '<div class="h-80 flex items-center justify-center text-gray-400">خطأ في تحميل البيانات</div>';
+    }
+});
+</script>
+{% endblock %}
