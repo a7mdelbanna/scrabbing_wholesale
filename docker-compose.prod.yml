@@ -1,0 +1,221 @@
+version: '3.8'
+
+# Production Docker Compose for Competitor Price Scraping API
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  # ===================
+  # API Server (FastAPI)
+  # ===================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scraping_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.production
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://scraper:${POSTGRES_PASSWORD}@db:5432/scraping_db
+      - REDIS_URL=redis://redis:6379/0
+      - API_ENV=production
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./exports:/app/exports
+      - ./static:/app/static
+      - app_logs:/app/logs
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - scraping_network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ===================
+  # Dashboard (Optional - same app different port)
+  # ===================
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scraping_dashboard
+    command: uvicorn src.dashboard.app:app --host 0.0.0.0 --port 5000
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env.production
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://scraper:${POSTGRES_PASSWORD}@db:5432/scraping_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./static:/app/static
+    restart: always
+    networks:
+      - scraping_network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ===================
+  # Celery Worker (Background Tasks)
+  # ===================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scraping_worker
+    command: celery -A src.workers.celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - .env.production
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://scraper:${POSTGRES_PASSWORD}@db:5432/scraping_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./exports:/app/exports
+    restart: always
+    networks:
+      - scraping_network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ===================
+  # Scheduler (APScheduler for Scraping Jobs)
+  # ===================
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scraping_scheduler
+    command: python -m src.scheduler.run
+    env_file:
+      - .env.production
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://scraper:${POSTGRES_PASSWORD}@db:5432/scraping_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - scraping_network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ===================
+  # PostgreSQL Database
+  # ===================
+  db:
+    image: postgres:15-alpine
+    container_name: scraping_db
+    environment:
+      - POSTGRES_USER=scraper
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-scraper_secure_pass}
+      - POSTGRES_DB=scraping_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scraper -d scraping_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - scraping_network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ===================
+  # Redis (Caching & Celery Broker)
+  # ===================
+  redis:
+    image: redis:7-alpine
+    container_name: scraping_redis
+    command: redis-server --appendonly yes --maxmemory 100mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - scraping_network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ===================
+  # Nginx Reverse Proxy (Optional)
+  # ===================
+  nginx:
+    image: nginx:alpine
+    container_name: scraping_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./static:/var/www/static:ro
+    depends_on:
+      - api
+      - dashboard
+    restart: always
+    networks:
+      - scraping_network
+    profiles:
+      - with-nginx
+
+# ===================
+# Networks
+# ===================
+networks:
+  scraping_network:
+    driver: bridge
+
+# ===================
+# Volumes
+# ===================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_logs:
+    driver: local
