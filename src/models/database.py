@@ -99,6 +99,7 @@ class Product(Base):
     # Relationships
     category = relationship("Category", back_populates="products")
     brand_rel = relationship("Brand", back_populates="products")
+    units = relationship("ProductUnit", back_populates="product", order_by="ProductUnit.factor")
     price_records = relationship(
         "PriceRecord",
         back_populates="product",
@@ -122,12 +123,42 @@ class Product(Base):
         return None
 
 
+class ProductUnit(Base):
+    """Product units/packaging options with different prices."""
+    __tablename__ = "product_units"
+
+    id = Column(Integer, primary_key=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    external_id = Column(String(255))  # Unit code from API (e.g., U_Code for Ben Soliman)
+    name = Column(String(255), nullable=False)  # Unit name (كرتونة, زجاجة, كيس, etc.)
+    name_ar = Column(String(255))
+    factor = Column(Integer, default=1)  # How many base units (e.g., 12 bottles per case)
+    barcode = Column(String(100))  # Unit-specific barcode
+    is_base_unit = Column(Boolean, default=False)  # True if this is the smallest unit
+    min_quantity = Column(Integer, default=1)
+    max_quantity = Column(Integer)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    product = relationship("Product", back_populates="units")
+    price_records = relationship("PriceRecord", back_populates="unit")
+
+    __table_args__ = (
+        UniqueConstraint("product_id", "external_id", name="uq_product_unit_external"),
+        Index("idx_product_unit_product", "product_id"),
+        Index("idx_product_unit_barcode", "barcode"),
+    )
+
+
 class PriceRecord(Base):
-    """Historical price records for products."""
+    """Historical price records for products/units."""
     __tablename__ = "price_records"
 
     id = Column(Integer, primary_key=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    unit_id = Column(Integer, ForeignKey("product_units.id"))  # Link to specific unit
     source_app = Column(String(50), nullable=False)
     price = Column(Numeric(12, 2), nullable=False)
     original_price = Column(Numeric(12, 2))  # Price before discount
@@ -140,10 +171,12 @@ class PriceRecord(Base):
 
     # Relationships
     product = relationship("Product", back_populates="price_records")
+    unit = relationship("ProductUnit", back_populates="price_records")
     scrape_job = relationship("ScrapeJob", back_populates="price_records")
 
     __table_args__ = (
         Index("idx_price_product_time", "product_id", "recorded_at"),
+        Index("idx_price_unit_time", "unit_id", "recorded_at"),
         Index("idx_price_recorded_at", "recorded_at"),
     )
 
@@ -225,3 +258,24 @@ class Credential(Base):
     last_login_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class APIKey(Base):
+    """API keys for authentication."""
+    __tablename__ = "api_keys"
+
+    id = Column(Integer, primary_key=True)
+    key_hash = Column(String(64), unique=True, nullable=False)  # SHA256 hash
+    name = Column(String(100), nullable=False)
+    scopes = Column(ARRAY(String), default=["read"])  # ["read", "write", "admin"]
+    rate_limit_per_minute = Column(Integer, default=60)
+    is_active = Column(Boolean, default=True)
+    expires_at = Column(DateTime(timezone=True))
+    last_used_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_api_key_hash", "key_hash"),
+        Index("idx_api_key_active", "is_active"),
+    )

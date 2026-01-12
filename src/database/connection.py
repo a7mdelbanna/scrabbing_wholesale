@@ -3,12 +3,14 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     AsyncEngine,
     create_async_engine,
     async_sessionmaker,
 )
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 
 from src.config.settings import settings
@@ -19,6 +21,39 @@ logger = logging.getLogger(__name__)
 # Global engine instance
 _engine: AsyncEngine = None
 _async_session_factory: async_sessionmaker = None
+
+# Synchronous engine and session for API
+_sync_engine = None
+SessionLocal: sessionmaker = None
+
+
+def get_sync_engine():
+    """Get or create the synchronous database engine."""
+    global _sync_engine
+    if _sync_engine is None:
+        # Convert async URL to sync URL
+        sync_url = settings.database_url.replace("+asyncpg", "").replace("postgresql+asyncpg", "postgresql")
+        _sync_engine = create_engine(
+            sync_url,
+            echo=settings.log_level == "DEBUG",
+            pool_pre_ping=True,
+        )
+        logger.info("Synchronous database engine created")
+    return _sync_engine
+
+
+def get_sync_session_factory() -> sessionmaker:
+    """Get or create the synchronous session factory."""
+    global SessionLocal
+    if SessionLocal is None:
+        engine = get_sync_engine()
+        SessionLocal = sessionmaker(
+            bind=engine,
+            autocommit=False,
+            autoflush=False,
+        )
+        logger.info("Synchronous session factory created")
+    return SessionLocal
 
 
 def get_engine() -> AsyncEngine:
