@@ -39,6 +39,28 @@ class OfferResponse(BaseModel):
         from_attributes = True
 
 
+def build_offer_response(offer: Offer, product_name: Optional[str] = None) -> OfferResponse:
+    """Build offer response from ORM model."""
+    return OfferResponse(
+        id=offer.id,
+        source_app=offer.source_app,
+        external_id=offer.external_id,
+        product_id=offer.product_id,
+        product_name=product_name or (offer.product.name if offer.product else None),
+        title=offer.title,
+        title_ar=offer.title_ar,
+        description=offer.description,
+        description_ar=offer.description_ar,
+        discount_type=offer.discount_type,
+        discount_value=float(offer.discount_value) if offer.discount_value else None,
+        start_date=offer.start_date,
+        end_date=offer.end_date,
+        is_active=offer.is_active,
+        first_seen_at=offer.first_seen_at,
+        last_seen_at=offer.last_seen_at,
+    )
+
+
 @router.get("", response_model=PaginatedResponse[OfferResponse])
 async def list_offers(
     page: int = Query(default=1, ge=1),
@@ -76,105 +98,38 @@ async def list_offers(
         .all()
     )
 
-    items = [
-        OfferResponse(
-            id=o.id,
-            source_app=o.source_app,
-            external_id=o.external_id,
-            product_id=o.product_id,
-            product_name=o.product.name if o.product else None,
-            title=o.title,
-            title_ar=o.title_ar,
-            description=o.description,
-            description_ar=o.description_ar,
-            discount_type=o.discount_type,
-            discount_value=float(o.discount_value) if o.discount_value else None,
-            start_date=o.start_date,
-            end_date=o.end_date,
-            is_active=o.is_active,
-            first_seen_at=o.first_seen_at,
-            last_seen_at=o.last_seen_at,
-        )
-        for o in offers
-    ]
-
+    items = [build_offer_response(o) for o in offers]
     meta = PaginationMeta.from_pagination(total, page, per_page)
     return PaginatedResponse(data=items, meta=meta)
 
 
-@router.get("/{offer_id}", response_model=OfferResponse)
-async def get_offer(
-    offer_id: int,
+@router.get("/stats")
+async def get_offer_stats(
     db: Session = Depends(get_db),
 ):
-    """Get offer details by ID."""
-    offer = db.query(Offer).options(joinedload(Offer.product)).filter(Offer.id == offer_id).first()
-    if not offer:
-        raise NotFoundError("Offer", offer_id)
+    """Get offer statistics."""
+    total = db.query(func.count(Offer.id)).scalar()
+    active = db.query(func.count(Offer.id)).filter(Offer.is_active == True).scalar()
 
-    return OfferResponse(
-        id=offer.id,
-        source_app=offer.source_app,
-        external_id=offer.external_id,
-        product_id=offer.product_id,
-        product_name=offer.product.name if offer.product else None,
-        title=offer.title,
-        title_ar=offer.title_ar,
-        description=offer.description,
-        description_ar=offer.description_ar,
-        discount_type=offer.discount_type,
-        discount_value=float(offer.discount_value) if offer.discount_value else None,
-        start_date=offer.start_date,
-        end_date=offer.end_date,
-        is_active=offer.is_active,
-        first_seen_at=offer.first_seen_at,
-        last_seen_at=offer.last_seen_at,
+    by_app = dict(
+        db.query(Offer.source_app, func.count(Offer.id))
+        .group_by(Offer.source_app)
+        .all()
     )
 
+    by_type = dict(
+        db.query(Offer.discount_type, func.count(Offer.id))
+        .filter(Offer.discount_type.isnot(None))
+        .group_by(Offer.discount_type)
+        .all()
+    )
 
-@router.get("/by-product/{product_id}")
-async def get_product_offers(
-    product_id: int,
-    include_expired: bool = Query(default=False, description="Include expired offers"),
-    db: Session = Depends(get_db),
-) -> List[OfferResponse]:
-    """Get offers for a specific product."""
-    product = db.query(Product).filter(Product.id == product_id).first()
-    if not product:
-        raise NotFoundError("Product", product_id)
-
-    query = db.query(Offer).filter(Offer.product_id == product_id)
-
-    if not include_expired:
-        now = datetime.utcnow()
-        query = query.filter(
-            Offer.is_active == True,
-            or_(Offer.end_date.is_(None), Offer.end_date >= now)
-        )
-
-    offers = query.order_by(Offer.created_at.desc()).all()
-
-    return [
-        OfferResponse(
-            id=o.id,
-            source_app=o.source_app,
-            external_id=o.external_id,
-            product_id=o.product_id,
-            product_name=product.name,
-            title=o.title,
-            title_ar=o.title_ar,
-            description=o.description,
-            description_ar=o.description_ar,
-            discount_type=o.discount_type,
-            discount_value=float(o.discount_value) if o.discount_value else None,
-            start_date=o.start_date,
-            end_date=o.end_date,
-            is_active=o.is_active,
-            first_seen_at=o.first_seen_at,
-            last_seen_at=o.last_seen_at,
-        )
-        for o in offers
-    ]
+    return {
+        "total_offers": total,
+        "active_offers": active,
+        "by_app": by_app,
+        "by_discount_type": by_type,
+    }
 
 
 @router.get("/history")
@@ -207,27 +162,43 @@ async def get_offers_history(
         .all()
     )
 
-    items = [
-        OfferResponse(
-            id=o.id,
-            source_app=o.source_app,
-            external_id=o.external_id,
-            product_id=o.product_id,
-            product_name=o.product.name if o.product else None,
-            title=o.title,
-            title_ar=o.title_ar,
-            description=o.description,
-            description_ar=o.description_ar,
-            discount_type=o.discount_type,
-            discount_value=float(o.discount_value) if o.discount_value else None,
-            start_date=o.start_date,
-            end_date=o.end_date,
-            is_active=o.is_active,
-            first_seen_at=o.first_seen_at,
-            last_seen_at=o.last_seen_at,
-        )
-        for o in offers
-    ]
-
+    items = [build_offer_response(o) for o in offers]
     meta = PaginationMeta.from_pagination(total, page, per_page)
     return PaginatedResponse(data=items, meta=meta)
+
+
+@router.get("/by-product/{product_id}")
+async def get_product_offers(
+    product_id: int,
+    include_expired: bool = Query(default=False, description="Include expired offers"),
+    db: Session = Depends(get_db),
+) -> List[OfferResponse]:
+    """Get offers for a specific product."""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise NotFoundError("Product", product_id)
+
+    query = db.query(Offer).filter(Offer.product_id == product_id)
+
+    if not include_expired:
+        now = datetime.utcnow()
+        query = query.filter(
+            Offer.is_active == True,
+            or_(Offer.end_date.is_(None), Offer.end_date >= now)
+        )
+
+    offers = query.order_by(Offer.created_at.desc()).all()
+    return [build_offer_response(o, product.name) for o in offers]
+
+
+@router.get("/{offer_id}", response_model=OfferResponse)
+async def get_offer(
+    offer_id: int,
+    db: Session = Depends(get_db),
+):
+    """Get offer details by ID."""
+    offer = db.query(Offer).options(joinedload(Offer.product)).filter(Offer.id == offer_id).first()
+    if not offer:
+        raise NotFoundError("Offer", offer_id)
+
+    return build_offer_response(offer)

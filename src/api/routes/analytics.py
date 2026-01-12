@@ -186,13 +186,15 @@ async def get_scraper_performance(
     db: Session = Depends(get_db),
 ) -> List[ScraperPerformance]:
     """Get scraper performance metrics by app."""
+    from sqlalchemy import case
+
     # Get job statistics per app
     job_stats = (
         db.query(
             ScrapeJob.source_app,
             func.count(ScrapeJob.id).label("total_jobs"),
-            func.sum(func.cast(ScrapeJob.status == "completed", db.bind.dialect.name == "postgresql")).label("successful"),
-            func.sum(func.cast(ScrapeJob.status == "failed", db.bind.dialect.name == "postgresql")).label("failed"),
+            func.sum(case((ScrapeJob.status == "completed", 1), else_=0)).label("successful"),
+            func.sum(case((ScrapeJob.status == "failed", 1), else_=0)).label("failed"),
             func.avg(ScrapeJob.products_scraped).label("avg_products"),
             func.max(ScrapeJob.completed_at).label("last_run"),
         )
@@ -204,8 +206,8 @@ async def get_scraper_performance(
         ScraperPerformance(
             source_app=row.source_app,
             total_jobs=row.total_jobs,
-            successful_jobs=row.successful or 0,
-            failed_jobs=row.failed or 0,
+            successful_jobs=int(row.successful) if row.successful else 0,
+            failed_jobs=int(row.failed) if row.failed else 0,
             avg_products_per_job=float(row.avg_products) if row.avg_products else 0,
             last_run=row.last_run,
         )
