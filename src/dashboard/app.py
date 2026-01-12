@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import FileResponse
 
 from src.database.connection import init_db, close_db
 
@@ -50,19 +51,20 @@ def create_app() -> FastAPI:
     templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
     app.state.templates = templates
 
-    # Mount static files - project level (for downloaded images)
-    if PROJECT_STATIC_DIR.exists():
-        app.mount("/static", StaticFiles(directory=str(PROJECT_STATIC_DIR)), name="static")
-    # Mount dashboard-specific static files
-    elif STATIC_DIR.exists():
-        app.mount("/dashboard-static", StaticFiles(directory=str(STATIC_DIR)), name="dashboard-static")
-
-    # Register routes
+    # Register routes FIRST
     from src.dashboard.routes.pages import router as pages_router
     from src.dashboard.routes.api import router as api_router
 
     app.include_router(pages_router)
     app.include_router(api_router, prefix="/api")
+
+    # Mount static files AFTER routes - project level (for downloaded images)
+    if PROJECT_STATIC_DIR.exists():
+        logger.info(f"Mounting static files from: {PROJECT_STATIC_DIR.resolve()}")
+        app.mount("/static", StaticFiles(directory=str(PROJECT_STATIC_DIR.resolve())), name="static")
+    # Mount dashboard-specific static files
+    elif STATIC_DIR.exists():
+        app.mount("/dashboard-static", StaticFiles(directory=str(STATIC_DIR.resolve())), name="dashboard-static")
 
     @app.get("/health")
     async def health_check():

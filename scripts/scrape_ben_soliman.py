@@ -37,14 +37,20 @@ IMAGES_DIR = PROJECT_ROOT / "static" / "images" / "products"
 
 
 async def download_image(client: httpx.AsyncClient, image_name: str, product_id: str) -> str | None:
-    """Download product image and save locally."""
+    """Download product image and save locally.
+
+    Based on mitmproxy analysis:
+    - Images are at /ItemImage/{ImageName} (not /Icons/)
+    - ImageName field from API contains the actual filename
+    - Examples: 4020801.png, 1_zoUHf1Q.png, etc.
+    """
     if not image_name:
         return None
 
     # Create images directory if needed
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Generate local filename
+    # Generate local filename (use product_id for consistency)
     ext = Path(image_name).suffix or ".png"
     local_filename = f"ben_soliman_{product_id}{ext}"
     local_path = IMAGES_DIR / local_filename
@@ -53,23 +59,24 @@ async def download_image(client: httpx.AsyncClient, image_name: str, product_id:
     if local_path.exists():
         return f"/static/images/products/{local_filename}"
 
-    # Try different image URL patterns
-    image_urls = [
-        f"{IMAGE_SERVER}/Icons/{image_name}",
-        f"{IMAGE_SERVER}/icons/{image_name}",
-        f"{IMAGE_SERVER}/{image_name}",
-    ]
+    # Use ImageName directly - this is the correct pattern!
+    url = f"{IMAGE_SERVER}/ItemImage/{image_name}"
 
-    for url in image_urls:
-        try:
-            response = await client.get(url, headers=HEADERS, timeout=10.0)
-            if response.status_code == 200 and len(response.content) > 100:
-                # Save image
+    try:
+        response = await client.get(url, headers=HEADERS, timeout=15.0)
+        if response.status_code == 200 and len(response.content) > 500:
+            # Verify it's actually an image (check magic bytes)
+            content = response.content
+            is_png = content[:4] == b'\x89PNG'
+            is_jpg = content[:2] == b'\xff\xd8'
+            is_gif = content[:6] == b'GIF89a' or content[:6] == b'GIF87a'
+
+            if is_png or is_jpg or is_gif:
                 with open(local_path, "wb") as f:
-                    f.write(response.content)
+                    f.write(content)
                 return f"/static/images/products/{local_filename}"
-        except Exception:
-            continue
+    except Exception:
+        pass
 
     return None
 
@@ -150,7 +157,7 @@ async def main():
                         external_id=cat_id,
                         name=cat_data.get("Name", ""),
                         name_ar=cat_data.get("Name"),
-                        image_url=f"http://37.148.206.212/Icons/{cat_data.get('ImageName')}" if cat_data.get("ImageName") else None,
+                        image_url=f"{IMAGE_SERVER}/ItemImage/{cat_data.get('ImageName')}" if cat_data.get("ImageName") else None,
                     )
                     session.add(category)
 
@@ -192,8 +199,8 @@ async def main():
                 # Download image
                 image_name = prod_data.get("ImageName")
                 local_image_path = await download_image(client, image_name, external_id)
-                # Keep original URL as fallback
-                original_image_url = f"{IMAGE_SERVER}/Icons/{image_name}" if image_name else None
+                # Keep original URL as fallback (using correct /ItemImage/ path)
+                original_image_url = f"{IMAGE_SERVER}/ItemImage/{image_name}" if image_name else None
 
                 if existing:
                     # Update existing product
