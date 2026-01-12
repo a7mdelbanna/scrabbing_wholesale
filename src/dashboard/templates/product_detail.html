@@ -18,7 +18,7 @@
     <!-- Product Info -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <!-- Image -->
-        {% if product.image_url and product.image_url.startswith('/static') %}
+        {% if product.image_url %}
         <div class="h-64 bg-gray-100 flex items-center justify-center overflow-hidden">
             <img src="{{ product.image_url }}" alt="{{ product.name }}"
                  class="max-h-full max-w-full object-contain"
@@ -37,16 +37,63 @@
         <div class="p-6">
             <!-- Source Badge -->
             <div class="mb-4">
-                <span class="px-3 py-1 text-sm rounded-full {% if product.source_app == 'ben_soliman' %}bg-blue-100 text-blue-700{% else %}bg-green-100 text-green-700{% endif %}">
-                    {% if product.source_app == 'ben_soliman' %}بن سليمان{% else %}تاجر السعادة{% endif %}
+                <span class="px-3 py-1 text-sm rounded-full
+                    {% if product.source_app == 'ben_soliman' %}bg-blue-100 text-blue-700
+                    {% elif product.source_app == 'tager_elsaada' %}bg-green-100 text-green-700
+                    {% elif product.source_app == 'el_rabie' %}bg-orange-100 text-orange-700
+                    {% elif product.source_app == 'gomla_shoaib' %}bg-red-100 text-red-700
+                    {% else %}bg-gray-100 text-gray-700{% endif %}">
+                    {% if product.source_app == 'ben_soliman' %}بن سليمان
+                    {% elif product.source_app == 'tager_elsaada' %}تاجر السعادة
+                    {% elif product.source_app == 'el_rabie' %}شركة الربيع
+                    {% elif product.source_app == 'gomla_shoaib' %}جملة شعيب
+                    {% else %}{{ product.source_app }}{% endif %}
                 </span>
             </div>
 
             <!-- Name -->
             <h1 class="text-2xl font-bold text-gray-800 mb-4">{{ product.name }}</h1>
 
-            <!-- Price -->
-            {% if latest_price %}
+            <!-- Units and Prices -->
+            {% if units and units|length > 0 %}
+            <div class="mb-4">
+                <h3 class="text-sm font-semibold text-gray-600 mb-2">الوحدات والاسعار</h3>
+                <div class="space-y-2">
+                    {% for item in units %}
+                    <div class="flex items-center justify-between p-3 rounded-lg {% if item.unit.is_base_unit %}bg-blue-50 border border-blue-200{% else %}bg-gray-50{% endif %}">
+                        <div class="flex items-center gap-2">
+                            <span class="font-medium text-gray-800">{{ item.unit.name }}</span>
+                            {% if item.unit.factor and item.unit.factor > 1 %}
+                            <span class="text-xs text-gray-500">({{ item.unit.factor }} قطعة)</span>
+                            {% endif %}
+                            {% if item.unit.is_base_unit %}
+                            <span class="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">اساسية</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-left">
+                            {% if item.price %}
+                            <span class="font-bold text-blue-600 ltr">{{ "%.2f"|format(item.price.price) }}</span>
+                            <span class="text-sm text-gray-500">ج.م</span>
+                            {% if item.price.original_price and item.price.original_price > item.price.price %}
+                            <span class="text-xs text-gray-400 line-through mr-1 ltr">{{ "%.2f"|format(item.price.original_price) }}</span>
+                            {% endif %}
+                            <div class="text-xs mt-0.5">
+                                {% if item.price.is_available %}
+                                <span class="text-green-600">متوفر</span>
+                                {% else %}
+                                <span class="text-red-600">غير متوفر</span>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <span class="text-gray-400 text-sm">لا يوجد سعر</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% elif latest_price %}
+            <!-- Fallback: Show single price if no units -->
             <div class="mb-4">
                 <div class="flex items-baseline gap-2">
                     <span class="text-3xl font-bold text-blue-600 ltr">{{ "%.2f"|format(latest_price.price) }}</span>

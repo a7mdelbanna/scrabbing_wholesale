@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import select, func, desc
 
 from src.database.connection import get_async_session
-from src.models.database import Product, Category, Brand, PriceRecord, ScrapeJob
+from src.models.database import Product, Category, Brand, PriceRecord, ProductUnit, ScrapeJob
 from src.models.enums import SourceApp
 
 router = APIRouter()
@@ -21,6 +21,8 @@ async def home(request: Request):
     # Default values if database is unavailable
     ben_soliman_count = 0
     tager_count = 0
+    el_rabie_count = 0
+    gomla_shoaib_count = 0
     category_count = 0
     recent_jobs = []
     price_record_count = 0
@@ -38,6 +40,18 @@ async def home(request: Request):
             tager_count = await session.scalar(
                 select(func.count(Product.id)).where(
                     Product.source_app == SourceApp.TAGER_ELSAADA.value,
+                    Product.is_active == True,
+                )
+            ) or 0
+            el_rabie_count = await session.scalar(
+                select(func.count(Product.id)).where(
+                    Product.source_app == SourceApp.EL_RABIE.value,
+                    Product.is_active == True,
+                )
+            ) or 0
+            gomla_shoaib_count = await session.scalar(
+                select(func.count(Product.id)).where(
+                    Product.source_app == SourceApp.GOMLA_SHOAIB.value,
                     Product.is_active == True,
                 )
             ) or 0
@@ -65,6 +79,8 @@ async def home(request: Request):
             "request": request,
             "ben_soliman_count": ben_soliman_count,
             "tager_count": tager_count,
+            "el_rabie_count": el_rabie_count,
+            "gomla_shoaib_count": gomla_shoaib_count,
             "category_count": category_count,
             "recent_jobs": recent_jobs,
             "price_record_count": price_record_count,
@@ -177,6 +193,8 @@ async def products_page(
             "source_apps": [
                 {"value": SourceApp.BEN_SOLIMAN.value, "label": "بن سليمان"},
                 {"value": SourceApp.TAGER_ELSAADA.value, "label": "تاجر السعادة"},
+                {"value": SourceApp.EL_RABIE.value, "label": "شركة الربيع"},
+                {"value": SourceApp.GOMLA_SHOAIB.value, "label": "جملة شعيب"},
             ],
         },
     )
@@ -217,7 +235,7 @@ async def product_detail(request: Request, product_id: int):
             )
             brand = brand_result.scalar_one_or_none()
 
-        # Get latest price
+        # Get latest price (for base unit or any unit)
         latest_price_result = await session.execute(
             select(PriceRecord)
             .where(PriceRecord.product_id == product_id)
@@ -225,6 +243,32 @@ async def product_detail(request: Request, product_id: int):
             .limit(1)
         )
         latest_price = latest_price_result.scalar_one_or_none()
+
+        # Get all units with their latest prices
+        units_result = await session.execute(
+            select(ProductUnit)
+            .where(ProductUnit.product_id == product_id)
+            .order_by(ProductUnit.factor)
+        )
+        units = list(units_result.scalars().all())
+
+        # Get latest prices for each unit
+        units_with_prices = []
+        for unit in units:
+            unit_price_result = await session.execute(
+                select(PriceRecord)
+                .where(
+                    PriceRecord.product_id == product_id,
+                    PriceRecord.unit_id == unit.id,
+                )
+                .order_by(desc(PriceRecord.recorded_at))
+                .limit(1)
+            )
+            unit_price = unit_price_result.scalar_one_or_none()
+            units_with_prices.append({
+                "unit": unit,
+                "price": unit_price,
+            })
 
         # Check for matching product in other app (by barcode)
         matching_product = None
@@ -250,6 +294,7 @@ async def product_detail(request: Request, product_id: int):
             "category": category,
             "brand": brand,
             "latest_price": latest_price,
+            "units": units_with_prices,
             "matching_product": matching_product,
         },
     )

@@ -6,6 +6,8 @@ class SourceApp(str, Enum):
     """Supported competitor apps."""
     TAGER_ELSAADA = "tager_elsaada"
     BEN_SOLIMAN = "ben_soliman"
+    EL_RABIE = "el_rabie"  # شركة الربيع - ZAH CODE
+    GOMLA_SHOAIB = "gomla_shoaib"  # جملة شعيب - ZAH CODE
 
 
 class Currency(str, Enum):

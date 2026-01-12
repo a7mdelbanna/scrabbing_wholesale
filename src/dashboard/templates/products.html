@@ -67,7 +67,7 @@
     {% for item in products %}
     <a href="/products/{{ item.product.id }}" class="bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden">
         <!-- Image -->
-        {% if item.product.image_url and item.product.image_url.startswith('/static') %}
+        {% if item.product.image_url %}
         <div class="h-48 bg-gray-100 flex items-center justify-center overflow-hidden">
             <img src="{{ item.product.image_url }}" alt="{{ item.product.name }}"
                  class="max-h-full max-w-full object-contain"
@@ -86,8 +86,17 @@
         <div class="p-4">
             <!-- Source Badge -->
             <div class="mb-2">
-                <span class="px-2 py-1 text-xs rounded-full {% if item.product.source_app == 'ben_soliman' %}bg-blue-100 text-blue-700{% else %}bg-green-100 text-green-700{% endif %}">
-                    {% if item.product.source_app == 'ben_soliman' %}بن سليمان{% else %}تاجر السعادة{% endif %}
+                <span class="px-2 py-1 text-xs rounded-full 
+                    {% if item.product.source_app == 'ben_soliman' %}bg-blue-100 text-blue-700
+                    {% elif item.product.source_app == 'tager_elsaada' %}bg-green-100 text-green-700
+                    {% elif item.product.source_app == 'el_rabie' %}bg-orange-100 text-orange-700
+                    {% elif item.product.source_app == 'gomla_shoaib' %}bg-red-100 text-red-700
+                    {% else %}bg-gray-100 text-gray-700{% endif %}">
+                    {% if item.product.source_app == 'ben_soliman' %}بن سليمان
+                    {% elif item.product.source_app == 'tager_elsaada' %}تاجر السعادة
+                    {% elif item.product.source_app == 'el_rabie' %}شركة الربيع
+                    {% elif item.product.source_app == 'gomla_shoaib' %}جملة شعيب
+                    {% else %}{{ item.product.source_app }}{% endif %}
                 </span>
             </div>
 
