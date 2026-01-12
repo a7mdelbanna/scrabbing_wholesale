@@ -1,0 +1,89 @@
+# Render Blueprint - render.yaml
+# Deploy with: https://render.com/deploy?repo=your-repo-url
+
+services:
+  # ===================
+  # API Server
+  # ===================
+  - type: web
+    name: scraping-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/system/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: scraping-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: scraping-redis
+          type: redis
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: SECRET_KEY
+        generateValue: true
+    autoDeploy: true
+
+  # ===================
+  # Background Worker
+  # ===================
+  - type: worker
+    name: scraping-worker
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: celery -A src.workers.celery_app worker --loglevel=info --concurrency=2
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: scraping-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: scraping-redis
+          type: redis
+          property: connectionString
+    autoDeploy: true
+
+  # ===================
+  # Scheduler
+  # ===================
+  - type: worker
+    name: scraping-scheduler
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: python -m src.scheduler.run
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: scraping-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: scraping-redis
+          type: redis
+          property: connectionString
+    autoDeploy: true
+
+  # ===================
+  # Redis
+  # ===================
+  - type: redis
+    name: scraping-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+
+# ===================
+# PostgreSQL Database
+# ===================
+databases:
+  - name: scraping-db
+    plan: starter
+    databaseName: scraping_db
+    user: scraper
