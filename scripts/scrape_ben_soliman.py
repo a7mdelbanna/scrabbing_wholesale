@@ -164,6 +164,15 @@ async def main():
             await session.commit()
             print(f"Stored {len(categories)} categories")
 
+            # Build category mapping: external_id -> database_id
+            category_map = {}
+            cat_result = await session.execute(
+                select(Category).where(Category.source_app == SourceApp.BEN_SOLIMAN.value)
+            )
+            for cat in cat_result.scalars():
+                category_map[cat.external_id] = cat.id
+            print(f"Built category map with {len(category_map)} entries")
+
         # Fetch all products
         print("\nFetching products...")
         all_products = await fetch_products(client)
@@ -177,6 +186,10 @@ async def main():
         async with get_async_session() as session:
             for prod_data in all_products:
                 external_id = str(prod_data.get("ItemCode", ""))
+
+                # Get category database ID from CategoryCode
+                category_code = str(prod_data.get("CategoryCode", ""))
+                category_db_id = category_map.get(category_code)
 
                 # Check if product exists
                 result = await session.execute(
@@ -209,6 +222,8 @@ async def main():
                     existing.description = prod_data.get("Description")
                     existing.image_url = local_image_path or original_image_url
                     existing.barcode = prod_data.get("BarCode")
+                    existing.category_id = category_db_id  # Link to category
+                    existing.brand = str(prod_data.get("BrandId")) if prod_data.get("BrandId") else None
                     existing.last_seen_at = datetime.now(timezone.utc)
                     product = existing
                     products_updated += 1
@@ -225,6 +240,7 @@ async def main():
                         sku=external_id,
                         barcode=prod_data.get("BarCode"),
                         image_url=local_image_path or original_image_url,
+                        category_id=category_db_id,  # Link to category
                         unit_type="piece",
                         min_order_quantity=prod_data.get("MinimumQuantity", 1),
                         is_active=True,
