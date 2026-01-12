@@ -302,8 +302,15 @@ async def product_detail(request: Request, product_id: int):
 
 @router.get("/comparison", response_class=HTMLResponse)
 async def comparison_page(request: Request):
-    """Cross-app price comparison page."""
+    """Cross-app price comparison page (legacy - barcode matching only)."""
     templates = request.app.state.templates
+
+
+@router.get("/comparison-matrix", response_class=HTMLResponse)
+async def comparison_matrix_page(request: Request):
+    """Multi-app comparison matrix with smart linking."""
+    templates = request.app.state.templates
+    return templates.TemplateResponse("comparison_matrix.html", {"request": request})
 
     async with get_async_session() as session:
         # Find products with barcodes that exist in both apps

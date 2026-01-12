@@ -218,3 +218,201 @@ async def get_comparison_stats(
         "barcodes_in_multiple_apps": multi_app_count,
         "comparison_coverage_percentage": round(multi_app_count / total_unique_barcodes * 100, 2) if total_unique_barcodes else 0,
     }
+
+
+class MultiAppComparisonItem(BaseModel):
+    """Single app's product in the comparison matrix."""
+    product_id: Optional[int] = None
+    name: Optional[str] = None
+    price: Optional[float] = None
+    is_available: bool = True
+    image_url: Optional[str] = None
+    barcode: Optional[str] = None
+    is_linked: bool = False
+    link_id: Optional[int] = None
+
+
+class MultiAppComparisonRow(BaseModel):
+    """A row in the multi-app comparison matrix."""
+    primary_product_id: int
+    primary_name: str
+    primary_app: str
+    barcode: Optional[str] = None
+    ben_soliman: Optional[MultiAppComparisonItem] = None
+    tager_elsaada: Optional[MultiAppComparisonItem] = None
+    el_rabie: Optional[MultiAppComparisonItem] = None
+    gomla_shoaib: Optional[MultiAppComparisonItem] = None
+    lowest_price: Optional[float] = None
+    highest_price: Optional[float] = None
+    apps_with_product: int = 1
+
+
+@router.get("/matrix", response_model=PaginatedResponse[MultiAppComparisonRow])
+async def get_comparison_matrix(
+    source_app: Optional[str] = Query(None, description="Primary app to show products from"),
+    search: Optional[str] = Query(None, description="Search product name"),
+    show_linked_only: bool = Query(False, description="Only show products with links"),
+    show_unlinked_only: bool = Query(False, description="Only show products without full links"),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> PaginatedResponse[MultiAppComparisonRow]:
+    """
+    Get multi-app comparison matrix showing all 4 apps.
+
+    Returns products with columns for each app, showing:
+    - Product info if it exists (by barcode or link)
+    - Empty if product doesn't exist in that app
+    """
+    from src.models.database import ProductLink
+
+    ALL_APPS = ["ben_soliman", "tager_elsaada", "el_rabie", "gomla_shoaib"]
+
+    # Build base query for primary products
+    query = db.query(Product).filter(Product.is_active == True)
+
+    if source_app:
+        query = query.filter(Product.source_app == source_app)
+
+    if search:
+        search_filter = f"%{search}%"
+        query = query.filter(
+            (Product.name.ilike(search_filter)) |
+            (Product.name_ar.ilike(search_filter)) |
+            (Product.barcode.ilike(search_filter))
+        )
+
+    # Get total count
+    total = query.count()
+
+    # Apply pagination
+    offset = (page - 1) * per_page
+    primary_products = query.order_by(Product.name).offset(offset).limit(per_page).all()
+
+    # Get all product links
+    all_links = db.query(ProductLink).filter(ProductLink.is_active == True).all()
+    link_map: Dict[int, List[Tuple[int, int]]] = {}  # product_id -> [(linked_product_id, link_id)]
+    for link in all_links:
+        if link.product_a_id not in link_map:
+            link_map[link.product_a_id] = []
+        if link.product_b_id not in link_map:
+            link_map[link.product_b_id] = []
+        link_map[link.product_a_id].append((link.product_b_id, link.id))
+        link_map[link.product_b_id].append((link.product_a_id, link.id))
+
+    # Build comparison rows
+    results = []
+    for primary in primary_products:
+        row = MultiAppComparisonRow(
+            primary_product_id=primary.id,
+            primary_name=primary.name,
+            primary_app=primary.source_app,
+            barcode=primary.barcode,
+        )
+
+        # Get products in each app
+        apps_data: Dict[str, MultiAppComparisonItem] = {}
+        prices = []
+
+        # Find products by barcode or by links
+        linked_product_ids = [pid for pid, _ in link_map.get(primary.id, [])]
+        link_ids = {pid: lid for pid, lid in link_map.get(primary.id, [])}
+
+        for app in ALL_APPS:
+            item = None
+
+            if app == primary.source_app:
+                # This is the primary product's app
+                latest_price = db.query(PriceRecord).filter(
+                    PriceRecord.product_id == primary.id
+                ).order_by(PriceRecord.recorded_at.desc()).first()
+
+                price = float(latest_price.price) if latest_price else None
+                item = MultiAppComparisonItem(
+                    product_id=primary.id,
+                    name=primary.name,
+                    price=price,
+                    is_available=latest_price.is_available if latest_price else True,
+                    image_url=primary.image_url,
+                    barcode=primary.barcode,
+                    is_linked=True,  # Primary product
+                )
+                if price:
+                    prices.append(price)
+            else:
+                # Look for matching product in this app
+                # 1. By barcode
+                if primary.barcode:
+                    barcode_match = db.query(Product).filter(
+                        Product.source_app == app,
+                        Product.barcode == primary.barcode,
+                        Product.is_active == True,
+                    ).first()
+                    if barcode_match:
+                        latest_price = db.query(PriceRecord).filter(
+                            PriceRecord.product_id == barcode_match.id
+                        ).order_by(PriceRecord.recorded_at.desc()).first()
+
+                        price = float(latest_price.price) if latest_price else None
+                        item = MultiAppComparisonItem(
+                            product_id=barcode_match.id,
+                            name=barcode_match.name,
+                            price=price,
+                            is_available=latest_price.is_available if latest_price else True,
+                            image_url=barcode_match.image_url,
+                            barcode=barcode_match.barcode,
+                            is_linked=True,
+                        )
+                        if price:
+                            prices.append(price)
+
+                # 2. By product links
+                if not item and linked_product_ids:
+                    for linked_id in linked_product_ids:
+                        linked_product = db.query(Product).filter(
+                            Product.id == linked_id,
+                            Product.source_app == app,
+                        ).first()
+                        if linked_product:
+                            latest_price = db.query(PriceRecord).filter(
+                                PriceRecord.product_id == linked_product.id
+                            ).order_by(PriceRecord.recorded_at.desc()).first()
+
+                            price = float(latest_price.price) if latest_price else None
+                            item = MultiAppComparisonItem(
+                                product_id=linked_product.id,
+                                name=linked_product.name,
+                                price=price,
+                                is_available=latest_price.is_available if latest_price else True,
+                                image_url=linked_product.image_url,
+                                barcode=linked_product.barcode,
+                                is_linked=True,
+                                link_id=link_ids.get(linked_product.id),
+                            )
+                            if price:
+                                prices.append(price)
+                            break
+
+            apps_data[app] = item
+
+        # Set app columns
+        row.ben_soliman = apps_data.get("ben_soliman")
+        row.tager_elsaada = apps_data.get("tager_elsaada")
+        row.el_rabie = apps_data.get("el_rabie")
+        row.gomla_shoaib = apps_data.get("gomla_shoaib")
+
+        # Calculate stats
+        row.apps_with_product = sum(1 for v in apps_data.values() if v is not None)
+        row.lowest_price = min(prices) if prices else None
+        row.highest_price = max(prices) if prices else None
+
+        # Apply filters
+        if show_linked_only and row.apps_with_product < 2:
+            continue
+        if show_unlinked_only and row.apps_with_product >= 4:
+            continue
+
+        results.append(row)
+
+    meta = PaginationMeta.from_pagination(total, page, per_page)
+    return PaginatedResponse(data=results, meta=meta)

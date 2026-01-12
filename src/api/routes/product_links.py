@@ -255,17 +255,45 @@ async def verify_product_link(
         raise NotFoundError("ProductLink", link_id)
 
 
-@router.get("/{link_id}", response_model=ProductLinkResponse)
-async def get_product_link(
-    link_id: int,
+@router.get("/search-in-app")
+async def search_products_in_app(
+    query: str = Query(..., min_length=2, description="Search query"),
+    source_app: str = Query(..., description="App to search in"),
+    limit: int = Query(default=10, ge=1, le=50, description="Max results"),
     db: Session = Depends(get_db),
 ):
-    """Get a specific product link by ID."""
-    link = db.query(ProductLink).filter(ProductLink.id == link_id).first()
-    if not link:
-        raise NotFoundError("ProductLink", link_id)
+    """
+    Search for products by name in a specific app.
 
-    return build_link_response(link, db)
+    Used for manual linking - search for a product in another app to link it.
+    """
+    service = LinkingService(db)
+    results = service.search_products_in_app(query, source_app, limit)
+    return results
+
+
+@router.get("/smart-match/{product_id}")
+async def get_smart_matches(
+    product_id: int,
+    target_app: str = Query(..., description="Target app to find matches in"),
+    limit: int = Query(default=3, ge=1, le=10, description="Number of matches to return"),
+    db: Session = Depends(get_db),
+):
+    """
+    Find smart matches for a product in a target app.
+
+    Uses multiple matching strategies:
+    - Exact barcode match
+    - SKU similarity
+    - Token-based name matching
+    - Brand + name matching
+    - Arabic name matching
+
+    Returns top matches with scores and match reasons.
+    """
+    service = LinkingService(db)
+    matches = service.find_matches_for_product(product_id, target_app, limit)
+    return matches
 
 
 @router.get("/by-product/{product_id}")
@@ -305,3 +333,16 @@ async def get_comparison_by_links(
         raise NotFoundError("Product", product_id)
 
     return result
+
+
+@router.get("/{link_id}", response_model=ProductLinkResponse)
+async def get_product_link(
+    link_id: int,
+    db: Session = Depends(get_db),
+):
+    """Get a specific product link by ID."""
+    link = db.query(ProductLink).filter(ProductLink.id == link_id).first()
+    if not link:
+        raise NotFoundError("ProductLink", link_id)
+
+    return build_link_response(link, db)
