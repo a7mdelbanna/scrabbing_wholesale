@@ -2,14 +2,15 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_db
-from src.api.middleware.error_handler import NotFoundError
+from src.api.middleware.error_handler import NotFoundError, ValidationError
 from src.api.schemas.common import PaginatedResponse, PaginationMeta, SuccessResponse
 from src.models.database import ScrapeJob
+from src.services.scraper_service import ScraperService
 
 router = APIRouter(prefix="/scraper", tags=["Scraper Management"])
 
@@ -39,9 +40,14 @@ class ScheduleConfigResponse(BaseModel):
 
     source_app: str
     is_enabled: bool = True
-    cron_expression: Optional[str] = None
-    last_run_at: Optional[datetime] = None
-    next_run_at: Optional[datetime] = None
+    cron_expression: str = "0 * * * *"
+    job_type: str = "full"
+    max_concurrent_requests: Optional[int] = 3
+    request_delay_ms: Optional[int] = 1000
+    last_run_at: Optional[str] = None
+    next_run_at: Optional[str] = None
+    last_run_status: Optional[str] = None
+    last_run_products: int = 0
 
 
 class ScheduleConfigUpdate(BaseModel):
@@ -49,6 +55,9 @@ class ScheduleConfigUpdate(BaseModel):
 
     is_enabled: Optional[bool] = None
     cron_expression: Optional[str] = None
+    job_type: Optional[str] = None
+    max_concurrent_requests: Optional[int] = Field(None, ge=1, le=10)
+    request_delay_ms: Optional[int] = Field(None, ge=100, le=10000)
 
 
 class TriggerScrapeRequest(BaseModel):
@@ -56,6 +65,42 @@ class TriggerScrapeRequest(BaseModel):
 
     source_app: str = Field(..., description="Source app to scrape")
     job_type: str = Field(default="full", description="Job type (full, incremental, categories)")
+
+
+def build_job_response(job: ScrapeJob) -> ScrapeJobResponse:
+    """Build job response from ORM model."""
+    return ScrapeJobResponse(
+        id=job.id,
+        source_app=job.source_app,
+        job_type=job.job_type,
+        status=job.status,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+        products_scraped=job.products_scraped or 0,
+        products_updated=job.products_updated or 0,
+        products_new=job.products_new or 0,
+        errors_count=job.errors_count or 0,
+        error_details=job.error_details,
+        created_at=job.created_at,
+    )
+
+
+@router.get("/status")
+async def get_scraper_status(
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Get current scraper status across all apps."""
+    service = ScraperService(db)
+    return service.get_scraper_status()
+
+
+@router.get("/stats")
+async def get_scraper_stats(
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Get scraper job statistics."""
+    service = ScraperService(db)
+    return service.get_job_stats()
 
 
 @router.get("/jobs", response_model=PaginatedResponse[ScrapeJobResponse])
@@ -67,43 +112,18 @@ async def list_scrape_jobs(
     db: Session = Depends(get_db),
 ):
     """List scrape jobs with filters."""
-    query = db.query(ScrapeJob)
-
-    if source_app:
-        query = query.filter(ScrapeJob.source_app == source_app)
-    if status:
-        query = query.filter(ScrapeJob.status == status)
-
-    total = query.count()
-
+    service = ScraperService(db)
     offset = (page - 1) * per_page
-    jobs = (
-        query
-        .order_by(ScrapeJob.created_at.desc())
-        .offset(offset)
-        .limit(per_page)
-        .all()
+    jobs, total = service.get_jobs(
+        source_app=source_app,
+        status=status,
+        limit=per_page,
+        offset=offset,
     )
 
-    items = [
-        ScrapeJobResponse(
-            id=j.id,
-            source_app=j.source_app,
-            job_type=j.job_type,
-            status=j.status,
-            started_at=j.started_at,
-            completed_at=j.completed_at,
-            products_scraped=j.products_scraped,
-            products_updated=j.products_updated,
-            products_new=j.products_new,
-            errors_count=j.errors_count,
-            error_details=j.error_details,
-            created_at=j.created_at,
-        )
-        for j in jobs
-    ]
-
+    items = [build_job_response(job) for job in jobs]
     meta = PaginationMeta.from_pagination(total, page, per_page)
+
     return PaginatedResponse(data=items, meta=meta)
 
 
@@ -113,24 +133,13 @@ async def get_scrape_job(
     db: Session = Depends(get_db),
 ):
     """Get scrape job details by ID."""
-    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+    service = ScraperService(db)
+    job = service.get_job(job_id)
+
     if not job:
         raise NotFoundError("ScrapeJob", job_id)
 
-    return ScrapeJobResponse(
-        id=job.id,
-        source_app=job.source_app,
-        job_type=job.job_type,
-        status=job.status,
-        started_at=job.started_at,
-        completed_at=job.completed_at,
-        products_scraped=job.products_scraped,
-        products_updated=job.products_updated,
-        products_new=job.products_new,
-        errors_count=job.errors_count,
-        error_details=job.error_details,
-        created_at=job.created_at,
-    )
+    return build_job_response(job)
 
 
 @router.post("/jobs/{job_id}/cancel")
@@ -138,128 +147,91 @@ async def cancel_scrape_job(
     job_id: int,
     db: Session = Depends(get_db),
 ) -> SuccessResponse:
-    """Cancel a running scrape job."""
-    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
-    if not job:
-        raise NotFoundError("ScrapeJob", job_id)
+    """Cancel a running or pending scrape job."""
+    service = ScraperService(db)
 
-    if job.status != "running":
-        from src.api.middleware.error_handler import ValidationError
-        raise ValidationError("Can only cancel running jobs")
-
-    job.status = "cancelled"
-    job.completed_at = datetime.utcnow()
-    db.commit()
-
-    return SuccessResponse(message=f"Job {job_id} cancelled")
+    try:
+        job = service.cancel_job(job_id)
+        return SuccessResponse(message=f"Job {job_id} cancelled successfully")
+    except ValueError as e:
+        if "not found" in str(e).lower():
+            raise NotFoundError("ScrapeJob", job_id)
+        raise ValidationError(str(e))
 
 
-@router.post("/trigger")
+@router.post("/trigger", response_model=ScrapeJobResponse)
 async def trigger_scrape(
     request: TriggerScrapeRequest,
     db: Session = Depends(get_db),
-) -> ScrapeJobResponse:
-    """Trigger a manual scrape job."""
-    # Create a new scrape job
-    job = ScrapeJob(
-        source_app=request.source_app,
-        job_type=request.job_type,
-        status="pending",
-        created_at=datetime.utcnow(),
-    )
-    db.add(job)
-    db.commit()
-    db.refresh(job)
+):
+    """
+    Trigger a manual scrape job.
 
-    # TODO: In Phase 3, trigger actual scraper via Celery
-    # For now, just return the created job
+    This creates a pending job that will be picked up by the scraper worker.
+    """
+    service = ScraperService(db)
 
-    return ScrapeJobResponse(
-        id=job.id,
-        source_app=job.source_app,
-        job_type=job.job_type,
-        status=job.status,
-        started_at=job.started_at,
-        completed_at=job.completed_at,
-        products_scraped=job.products_scraped,
-        products_updated=job.products_updated,
-        products_new=job.products_new,
-        errors_count=job.errors_count,
-        error_details=job.error_details,
-        created_at=job.created_at,
-    )
+    try:
+        job = service.trigger_scrape(
+            source_app=request.source_app,
+            job_type=request.job_type,
+        )
+        return build_job_response(job)
+    except ValueError as e:
+        raise ValidationError(str(e))
 
 
-@router.get("/schedules")
+@router.get("/schedules", response_model=List[ScheduleConfigResponse])
 async def get_schedules(
     db: Session = Depends(get_db),
-) -> List[ScheduleConfigResponse]:
+):
     """Get scraper schedules for all apps."""
-    # TODO: Implement when ScheduleConfig model is added in Phase 3
-    # For now, return default schedules
-    apps = ["ben_soliman", "tager_elsaada", "el_rabie", "gomla_shoaib"]
-    return [
-        ScheduleConfigResponse(
-            source_app=app,
-            is_enabled=True,
-            cron_expression="0 * * * *",  # Every hour
-            last_run_at=None,
-            next_run_at=None,
-        )
-        for app in apps
-    ]
+    service = ScraperService(db)
+    schedules = service.get_all_schedules()
+    return [ScheduleConfigResponse(**s) for s in schedules]
 
 
-@router.put("/schedules/{source_app}")
+@router.get("/schedules/{source_app}", response_model=ScheduleConfigResponse)
+async def get_schedule(
+    source_app: str,
+    db: Session = Depends(get_db),
+):
+    """Get schedule configuration for a specific app."""
+    service = ScraperService(db)
+    schedule = service.get_schedule(source_app)
+
+    if not schedule:
+        raise NotFoundError("Schedule", source_app)
+
+    return ScheduleConfigResponse(**schedule)
+
+
+@router.put("/schedules/{source_app}", response_model=ScheduleConfigResponse)
 async def update_schedule(
     source_app: str,
     config: ScheduleConfigUpdate,
     db: Session = Depends(get_db),
-) -> ScheduleConfigResponse:
+):
     """Update scraper schedule for an app."""
-    # TODO: Implement when ScheduleConfig model is added in Phase 3
-    return ScheduleConfigResponse(
-        source_app=source_app,
-        is_enabled=config.is_enabled if config.is_enabled is not None else True,
-        cron_expression=config.cron_expression or "0 * * * *",
-    )
+    service = ScraperService(db)
+
+    try:
+        updated = service.update_schedule(
+            source_app=source_app,
+            is_enabled=config.is_enabled,
+            cron_expression=config.cron_expression,
+            job_type=config.job_type,
+            max_concurrent_requests=config.max_concurrent_requests,
+            request_delay_ms=config.request_delay_ms,
+        )
+        return ScheduleConfigResponse(**updated)
+    except ValueError as e:
+        raise ValidationError(str(e))
 
 
-@router.get("/status")
-async def get_scraper_status(
+@router.get("/apps")
+async def get_available_apps(
     db: Session = Depends(get_db),
-) -> Dict[str, Any]:
-    """Get current scraper status across all apps."""
-    # Get running jobs
-    running_jobs = (
-        db.query(ScrapeJob)
-        .filter(ScrapeJob.status == "running")
-        .all()
-    )
-
-    # Get last completed job per app
-    from sqlalchemy import func
-    last_jobs = (
-        db.query(ScrapeJob.source_app, func.max(ScrapeJob.completed_at))
-        .filter(ScrapeJob.status == "completed")
-        .group_by(ScrapeJob.source_app)
-        .all()
-    )
-
-    return {
-        "running_jobs": [
-            {
-                "id": j.id,
-                "source_app": j.source_app,
-                "job_type": j.job_type,
-                "started_at": j.started_at.isoformat() if j.started_at else None,
-                "products_scraped": j.products_scraped,
-            }
-            for j in running_jobs
-        ],
-        "last_completed": {
-            app: time.isoformat() if time else None
-            for app, time in last_jobs
-        },
-        "apps": ["ben_soliman", "tager_elsaada", "el_rabie", "gomla_shoaib"],
-    }
+) -> List[str]:
+    """Get list of available scraper apps."""
+    return ScraperService.AVAILABLE_APPS

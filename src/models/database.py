@@ -309,3 +309,82 @@ class ProductLink(Base):
         Index("idx_product_link_type", "link_type"),
         Index("idx_product_link_active", "is_active"),
     )
+
+
+class ScheduleConfig(Base):
+    """Scraper schedule configuration per app."""
+    __tablename__ = "schedule_configs"
+
+    id = Column(Integer, primary_key=True)
+    source_app = Column(String(50), unique=True, nullable=False)
+    is_enabled = Column(Boolean, default=True)
+    cron_expression = Column(String(100), default="0 * * * *")  # Default: every hour
+    job_type = Column(String(50), default="full")  # full, incremental, categories
+    max_concurrent_requests = Column(Integer, default=3)
+    request_delay_ms = Column(Integer, default=1000)
+    last_run_at = Column(DateTime(timezone=True))
+    next_run_at = Column(DateTime(timezone=True))
+    last_run_status = Column(String(50))  # completed, failed
+    last_run_products = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        Index("idx_schedule_app", "source_app"),
+        Index("idx_schedule_enabled", "is_enabled"),
+    )
+
+
+class Banner(Base):
+    """Promotional banners/sliders from competitor apps."""
+    __tablename__ = "banners"
+
+    id = Column(Integer, primary_key=True)
+    source_app = Column(String(50), nullable=False)
+    external_id = Column(String(255), nullable=False)
+    title = Column(String(500))
+    title_ar = Column(String(500))
+    image_url = Column(Text, nullable=False)
+    link_type = Column(String(50))  # product, category, offer, external, none
+    link_target_id = Column(String(255))  # ID of linked entity
+    link_url = Column(Text)  # Full URL if external link
+    position = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    start_date = Column(DateTime(timezone=True))
+    end_date = Column(DateTime(timezone=True))
+    first_seen_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("source_app", "external_id", name="uq_banner_source_external"),
+        Index("idx_banner_source", "source_app"),
+        Index("idx_banner_active", "is_active"),
+    )
+
+
+class ExportJob(Base):
+    """Export job tracking for async exports."""
+    __tablename__ = "export_jobs"
+
+    id = Column(Integer, primary_key=True)
+    job_type = Column(String(50), nullable=False)  # products_csv, prices_csv, images_zip, comparison
+    status = Column(String(50), default="pending")  # pending, processing, completed, failed
+    parameters = Column(JSONB)  # Export parameters (filters, format, etc.)
+    file_path = Column(Text)  # Path to generated file
+    file_name = Column(String(255))  # Original filename
+    file_size_bytes = Column(Integer)
+    records_count = Column(Integer)
+    progress_percent = Column(Integer, default=0)
+    error_message = Column(Text)
+    requested_by = Column(String(100))  # API key name or user
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+    expires_at = Column(DateTime(timezone=True))  # When file will be deleted
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_export_status", "status"),
+        Index("idx_export_type", "job_type"),
+    )
