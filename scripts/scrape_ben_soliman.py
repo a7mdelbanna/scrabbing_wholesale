@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from src.database.connection import get_async_session, init_db
-from src.models.database import Product, Category, Brand, PriceRecord, ScrapeJob
+from src.models.database import Product, Category, Brand, PriceRecord, ProductUnit, ScrapeJob
 from src.models.enums import SourceApp
 
 # Ben Soliman API Configuration
@@ -233,6 +233,7 @@ async def main():
         # Store products and prices
         products_new = 0
         products_updated = 0
+        units_created = 0
         images_downloaded = 0
 
         async with get_async_session() as session:
@@ -307,18 +308,76 @@ async def main():
                     await session.flush()  # Get the product ID
                     products_new += 1
 
-                # Create price record
-                if sell_price:
-                    price_record = PriceRecord(
-                        product_id=product.id,
-                        source_app=SourceApp.BEN_SOLIMAN.value,
-                        price=Decimal(str(sell_price)),
-                        original_price=Decimal(str(item_price)) if item_price else None,
-                        discount_percentage=Decimal(str(discount_pct)) if discount_pct else None,
-                        is_available=prod_data.get("Balance", 0) > 0,
-                        scrape_job_id=job_id,
-                    )
-                    session.add(price_record)
+                # Process units (u_codes) - most products have multiple packaging options
+                u_codes = prod_data.get("u_codes", [])
+
+                if u_codes:
+                    for idx, unit_data in enumerate(u_codes):
+                        unit_code = str(unit_data.get("U_Code", ""))
+                        unit_name = unit_data.get("U_Name", "قطعة")
+                        factor = unit_data.get("Factor", 1) or 1
+                        unit_balance = unit_data.get("U_Balance", 0) or 0
+                        is_base = (idx == 0)  # First unit is typically the base unit
+
+                        # Check if unit exists
+                        unit_result = await session.execute(
+                            select(ProductUnit).where(
+                                ProductUnit.product_id == product.id,
+                                ProductUnit.external_id == unit_code,
+                            )
+                        )
+                        existing_unit = unit_result.scalar_one_or_none()
+
+                        if existing_unit:
+                            existing_unit.name = unit_name
+                            existing_unit.name_ar = unit_name
+                            existing_unit.factor = factor
+                            existing_unit.is_base_unit = is_base
+                            unit = existing_unit
+                        else:
+                            unit = ProductUnit(
+                                product_id=product.id,
+                                external_id=unit_code,
+                                name=unit_name,
+                                name_ar=unit_name,
+                                factor=factor,
+                                is_base_unit=is_base,
+                                is_active=True,
+                            )
+                            session.add(unit)
+                            await session.flush()
+                            units_created += 1
+
+                        # Create price record for this unit
+                        # Price is per unit, calculated from base price * factor
+                        unit_price = float(sell_price) * factor if sell_price else None
+                        unit_original_price = float(item_price) * factor if item_price else None
+
+                        if unit_price:
+                            price_record = PriceRecord(
+                                product_id=product.id,
+                                unit_id=unit.id,
+                                source_app=SourceApp.BEN_SOLIMAN.value,
+                                price=Decimal(str(round(unit_price, 2))),
+                                original_price=Decimal(str(round(unit_original_price, 2))) if unit_original_price else None,
+                                discount_percentage=Decimal(str(discount_pct)) if discount_pct else None,
+                                is_available=unit_balance > 0,
+                                scrape_job_id=job_id,
+                            )
+                            session.add(price_record)
+                else:
+                    # Fallback: no u_codes, create single price record (legacy behavior)
+                    if sell_price:
+                        price_record = PriceRecord(
+                            product_id=product.id,
+                            source_app=SourceApp.BEN_SOLIMAN.value,
+                            price=Decimal(str(sell_price)),
+                            original_price=Decimal(str(item_price)) if item_price else None,
+                            discount_percentage=Decimal(str(discount_pct)) if discount_pct else None,
+                            is_available=prod_data.get("Balance", 0) > 0,
+                            scrape_job_id=job_id,
+                        )
+                        session.add(price_record)
 
                 # Count downloaded images
                 if local_image_path:
@@ -327,7 +386,7 @@ async def main():
                 # Progress indicator
                 total = products_new + products_updated
                 if total % 50 == 0:
-                    print(f"  Processed {total} products, {images_downloaded} images downloaded...")
+                    print(f"  Processed {total} products, {units_created} units, {images_downloaded} images...")
 
             await session.commit()
 
@@ -349,7 +408,8 @@ async def main():
         print("=" * 50)
         print(f"New products: {products_new}")
         print(f"Updated products: {products_updated}")
-        print(f"Total: {products_new + products_updated}")
+        print(f"Total products: {products_new + products_updated}")
+        print(f"Units created: {units_created}")
         print(f"Images downloaded: {images_downloaded}")
         print(f"\nImages saved to: {IMAGES_DIR}")
         print("\nRefresh your dashboard to see the data!")

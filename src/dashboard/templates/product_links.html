@@ -200,24 +200,24 @@
             }
 
             tbody.innerHTML = data.data.map(link => {
-                const colorsA = appColors[link.product_a?.source_app] || {};
-                const colorsB = appColors[link.product_b?.source_app] || {};
+                const colorsA = appColors[link.product_a_app] || {};
+                const colorsB = appColors[link.product_b_app] || {};
 
                 return `
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2">
-                                <span class="px-2 py-1 text-xs rounded ${colorsA.bg || 'bg-gray-100'} ${colorsA.text || ''}">${colorsA.name || link.product_a?.source_app}</span>
-                                <a href="/products/${link.product_a?.id}" class="text-blue-600 hover:underline">
-                                    ${link.product_a?.name?.substring(0, 30) || 'غير متوفر'}...
+                                <span class="px-2 py-1 text-xs rounded ${colorsA.bg || 'bg-gray-100'} ${colorsA.text || ''}">${colorsA.name || link.product_a_app || '-'}</span>
+                                <a href="/products/${link.product_a_id}" class="text-blue-600 hover:underline">
+                                    ${link.product_a_name?.substring(0, 30) || 'غير متوفر'}...
                                 </a>
                             </div>
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2">
-                                <span class="px-2 py-1 text-xs rounded ${colorsB.bg || 'bg-gray-100'} ${colorsB.text || ''}">${colorsB.name || link.product_b?.source_app}</span>
-                                <a href="/products/${link.product_b?.id}" class="text-blue-600 hover:underline">
-                                    ${link.product_b?.name?.substring(0, 30) || 'غير متوفر'}...
+                                <span class="px-2 py-1 text-xs rounded ${colorsB.bg || 'bg-gray-100'} ${colorsB.text || ''}">${colorsB.name || link.product_b_app || '-'}</span>
+                                <a href="/products/${link.product_b_id}" class="text-blue-600 hover:underline">
+                                    ${link.product_b_name?.substring(0, 30) || 'غير متوفر'}...
                                 </a>
                             </div>
                         </td>
@@ -269,33 +269,34 @@
             }
 
             tbody.innerHTML = data.map(suggestion => {
-                const colorsA = appColors[suggestion.product_a?.source_app] || {};
-                const colorsB = appColors[suggestion.product_b?.source_app] || {};
+                const colorsA = appColors[suggestion.product_a_app] || {};
+                const colorsB = appColors[suggestion.product_b_app] || {};
+                const similarity = suggestion.similarity_score || 0;
 
                 return `
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2">
-                                <span class="px-2 py-1 text-xs rounded ${colorsA.bg || 'bg-gray-100'}">${colorsA.name || suggestion.product_a?.source_app}</span>
-                                <span class="text-sm">${suggestion.product_a?.name?.substring(0, 40)}...</span>
+                                <span class="px-2 py-1 text-xs rounded ${colorsA.bg || 'bg-gray-100'}">${colorsA.name || suggestion.product_a_app || '-'}</span>
+                                <span class="text-sm">${suggestion.product_a_name?.substring(0, 40) || '-'}...</span>
                             </div>
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2">
-                                <span class="px-2 py-1 text-xs rounded ${colorsB.bg || 'bg-gray-100'}">${colorsB.name || suggestion.product_b?.source_app}</span>
-                                <span class="text-sm">${suggestion.product_b?.name?.substring(0, 40)}...</span>
+                                <span class="px-2 py-1 text-xs rounded ${colorsB.bg || 'bg-gray-100'}">${colorsB.name || suggestion.product_b_app || '-'}</span>
+                                <span class="text-sm">${suggestion.product_b_name?.substring(0, 40) || '-'}...</span>
                             </div>
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2">
                                 <div class="w-20 bg-gray-200 rounded-full h-2">
-                                    <div class="h-2 rounded-full bg-green-500" style="width: ${suggestion.similarity * 100}%"></div>
+                                    <div class="h-2 rounded-full bg-green-500" style="width: ${similarity * 100}%"></div>
                                 </div>
-                                <span class="text-sm font-medium">${(suggestion.similarity * 100).toFixed(0)}%</span>
+                                <span class="text-sm font-medium">${(similarity * 100).toFixed(0)}%</span>
                             </div>
                         </td>
                         <td class="px-4 py-3">
-                            <button onclick="acceptSuggestion(${suggestion.product_a?.id}, ${suggestion.product_b?.id})"
+                            <button onclick="acceptSuggestion(${suggestion.product_a_id}, ${suggestion.product_b_id})"
                                     class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
                                 <i class="fas fa-check"></i> قبول
                             </button>

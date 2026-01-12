@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from src.database.connection import get_async_session, init_db
-from src.models.database import Product, Category, Brand, PriceRecord, ScrapeJob
+from src.models.database import Product, Category, Brand, PriceRecord, ProductUnit, ScrapeJob
 from src.models.enums import SourceApp
 
 # Tager elSa3ada API Configuration
@@ -234,6 +234,7 @@ async def main():
         # Store products and prices
         products_new = 0
         products_updated = 0
+        units_created = 0
         images_downloaded = 0
         page = 1
         per_page = 100
@@ -275,19 +276,14 @@ async def main():
                     # Download image
                     local_image_path = await download_image(client, original_image_url, external_id)
 
-                    # Get price info from units
-                    units = prod_data.get("units", [])
-                    price = None
-                    old_price = None
-                    barcode = None
-                    in_stock = False
+                    # Get units data - Tager has units with prices
+                    units_data = prod_data.get("units", [])
 
-                    if units:
-                        base_unit = units[0]  # Use first unit as base
-                        price = base_unit.get("price")
-                        old_price = base_unit.get("old_price")
-                        barcode = base_unit.get("barcode", "").split(",")[0] if base_unit.get("barcode") else None
-                        in_stock = base_unit.get("in_stock", False)
+                    # Get barcode from first unit for product-level storage
+                    first_barcode = None
+                    if units_data:
+                        bc = units_data[0].get("barcode", "")
+                        first_barcode = bc.split(",")[0] if bc else None
 
                     if existing:
                         # Update existing product
@@ -295,7 +291,7 @@ async def main():
                         existing.name_ar = prod_data.get("name")
                         existing.description = prod_data.get("description")
                         existing.image_url = local_image_path or original_image_url
-                        existing.barcode = barcode
+                        existing.barcode = first_barcode
                         existing.sku = sku
                         existing.brand_id = vendor_db_id
                         existing.brand = vendor_name
@@ -314,7 +310,7 @@ async def main():
                             brand=vendor_name,
                             brand_id=vendor_db_id,
                             sku=sku,
-                            barcode=barcode,
+                            barcode=first_barcode,
                             image_url=local_image_path or original_image_url,
                             unit_type="piece",
                             is_active=True,
@@ -323,23 +319,66 @@ async def main():
                         await session.flush()  # Get the product ID
                         products_new += 1
 
-                    # Create price record
-                    if price:
-                        # Calculate discount
-                        discount_pct = None
-                        if old_price and float(old_price) > float(price):
-                            discount_pct = round((1 - float(price) / float(old_price)) * 100, 2)
+                    # Process all units with their individual prices
+                    if units_data:
+                        for idx, unit_data in enumerate(units_data):
+                            unit_id_str = str(unit_data.get("id", f"{external_id}_{idx}"))
+                            unit_name = unit_data.get("name", "قطعة")
+                            factor = unit_data.get("factor", 1) or 1
+                            unit_barcode = unit_data.get("barcode", "").split(",")[0] if unit_data.get("barcode") else None
+                            is_base = unit_data.get("base_unit", False) or (idx == 0)
+                            price = unit_data.get("price")
+                            old_price = unit_data.get("old_price")
+                            in_stock = unit_data.get("in_stock", False)
 
-                        price_record = PriceRecord(
-                            product_id=product.id,
-                            source_app=SourceApp.TAGER_ELSAADA.value,
-                            price=Decimal(str(price)),
-                            original_price=Decimal(str(old_price)) if old_price and old_price > 0 else None,
-                            discount_percentage=Decimal(str(discount_pct)) if discount_pct else None,
-                            is_available=in_stock,
-                            scrape_job_id=job_id,
-                        )
-                        session.add(price_record)
+                            # Check if unit exists
+                            unit_result = await session.execute(
+                                select(ProductUnit).where(
+                                    ProductUnit.product_id == product.id,
+                                    ProductUnit.external_id == unit_id_str,
+                                )
+                            )
+                            existing_unit = unit_result.scalar_one_or_none()
+
+                            if existing_unit:
+                                existing_unit.name = unit_name
+                                existing_unit.name_ar = unit_name
+                                existing_unit.factor = factor
+                                existing_unit.barcode = unit_barcode
+                                existing_unit.is_base_unit = is_base
+                                unit = existing_unit
+                            else:
+                                unit = ProductUnit(
+                                    product_id=product.id,
+                                    external_id=unit_id_str,
+                                    name=unit_name,
+                                    name_ar=unit_name,
+                                    factor=factor,
+                                    barcode=unit_barcode,
+                                    is_base_unit=is_base,
+                                    is_active=True,
+                                )
+                                session.add(unit)
+                                await session.flush()
+                                units_created += 1
+
+                            # Create price record for this unit
+                            if price:
+                                discount_pct = None
+                                if old_price and float(old_price) > float(price):
+                                    discount_pct = round((1 - float(price) / float(old_price)) * 100, 2)
+
+                                price_record = PriceRecord(
+                                    product_id=product.id,
+                                    unit_id=unit.id,
+                                    source_app=SourceApp.TAGER_ELSAADA.value,
+                                    price=Decimal(str(price)),
+                                    original_price=Decimal(str(old_price)) if old_price and old_price > 0 else None,
+                                    discount_percentage=Decimal(str(discount_pct)) if discount_pct else None,
+                                    is_available=in_stock,
+                                    scrape_job_id=job_id,
+                                )
+                                session.add(price_record)
 
                     # Count downloaded images
                     if local_image_path:
@@ -347,7 +386,7 @@ async def main():
 
                 # Progress indicator
                 total = products_new + products_updated
-                print(f"  Processed {total} products, {images_downloaded} images downloaded...")
+                print(f"  Processed {total} products, {units_created} units, {images_downloaded} images...")
 
                 # Check if we have more pages
                 meta = response.get("data", {}).get("meta", {})
@@ -375,7 +414,8 @@ async def main():
         print("=" * 50)
         print(f"New products: {products_new}")
         print(f"Updated products: {products_updated}")
-        print(f"Total: {products_new + products_updated}")
+        print(f"Total products: {products_new + products_updated}")
+        print(f"Units created: {units_created}")
         print(f"Images downloaded: {images_downloaded}")
         print(f"\nImages saved to: {IMAGES_DIR}")
         print("\nRefresh your dashboard to see the data!")
